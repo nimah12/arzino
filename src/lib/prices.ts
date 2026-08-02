@@ -1,3 +1,5 @@
+import { getLiveHistory, liveChange, recordLivePrices } from "./live";
+
 export type PriceItem = {
   id: string;
   title: string;
@@ -9,6 +11,7 @@ export type PriceItem = {
   history?: number[];
   buyPrice?: string;
   sellPrice?: string;
+  source?: string;
 };
 
 export type PriceHistoryItem = {
@@ -17,17 +20,37 @@ export type PriceHistoryItem = {
 };
 
 const fallbackPrices: PriceItem[] = [
-  { id: "usd", title: "دلار آمریکا", icon: "💵", price: "0", change: null, changeAbs: null, updatedAt: "", history: [] },
-  { id: "eur", title: "یورو", icon: "💶", price: "0", change: null, changeAbs: null, updatedAt: "", history: [] },
-  { id: "gbp", title: "پوند انگلیس", icon: "💷", price: "0", change: null, changeAbs: null, updatedAt: "", history: [] },
-  { id: "aed", title: "درهم امارات", icon: "🇦🇪", price: "0", change: null, changeAbs: null, updatedAt: "", history: [] },
-  { id: "try", title: "لیر ترکیه", icon: "🇹🇷", price: "0", change: null, changeAbs: null, updatedAt: "", history: [] },
-  { id: "gold18", title: "طلای ۱۸ عیار", icon: "🥇", price: "0", change: null, changeAbs: null, updatedAt: "", history: [] },
-  { id: "coin", title: "سکه امامی", icon: "🪙", price: "0", change: null, changeAbs: null, updatedAt: "", history: [] },
-  { id: "half-coin", title: "نیم سکه", icon: "🪙", price: "0", change: null, changeAbs: null, updatedAt: "", history: [] },
-  { id: "tether", title: "تتر (USDT)", icon: "💎", price: "0", change: null, changeAbs: null, updatedAt: "", history: [] },
-  { id: "gold-gr", title: "طلا (گرمی)", icon: "✨", price: "0", change: null, changeAbs: null, updatedAt: "", history: [] },
-  { id: "coin-fardi", title: "سکه فردایی", icon: "🏅", price: "0", change: null, changeAbs: null, updatedAt: "", history: [] },
+  { id: "usd", title: "دلار آمریکا", icon: "💵", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "eur", title: "یورو", icon: "💶", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "gbp", title: "پوند انگلیس", icon: "💷", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "aed", title: "درهم امارات", icon: "🇦🇪", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "try", title: "لیر ترکیه", icon: "🇹🇷", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "gold18", title: "طلای ۱۸ عیار", icon: "🥇", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "coin", title: "سکه امامی", icon: "🪙", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "half-coin", title: "نیم سکه", icon: "🪙", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "tether", title: "تتر (USDT)", icon: "💎", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "gold-gr", title: "طلا (گرمی)", icon: "✨", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "coin-fardi", title: "سکه فردایی", icon: "🏅", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+];
+
+/** Canonical order + titles/icons for the watchlist. */
+export const ITEM_META: Record<string, { title: string; icon: string }> = {
+  usd: { title: "دلار آمریکا", icon: "💵" },
+  eur: { title: "یورو", icon: "💶" },
+  gbp: { title: "پوند انگلیس", icon: "💷" },
+  aed: { title: "درهم امارات", icon: "🇦🇪" },
+  try: { title: "لیر ترکیه", icon: "🇹🇷" },
+  gold18: { title: "طلای ۱۸ عیار", icon: "🥇" },
+  "gold-gr": { title: "طلا (گرمی)", icon: "✨" },
+  coin: { title: "سکه امامی", icon: "🪙" },
+  "half-coin": { title: "نیم سکه", icon: "🪙" },
+  tether: { title: "تتر (USDT)", icon: "💎" },
+  "coin-fardi": { title: "سکه فردایی", icon: "🏅" },
+};
+
+export const ITEM_ORDER = [
+  "usd", "eur", "gbp", "aed", "try", "gold18",
+  "gold-gr", "coin", "half-coin", "tether", "coin-fardi",
 ];
 
 export function toFaDigits(input: string): string {
@@ -40,7 +63,31 @@ export function toEnDigits(input: string): string {
   return input.replace(/[۰-۹]/g, (d) => String(faDigits.indexOf(d)));
 }
 
-function formatPrice(raw: string | number | null | undefined): string {
+/** Short bilingual display names used for the EN UI, overview cards and search. */
+export const ASSET_TITLES: Record<string, { en: string }> = {
+  usd: { en: "US Dollar" },
+  eur: { en: "Euro" },
+  gbp: { en: "British Pound" },
+  aed: { en: "UAE Dirham" },
+  try: { en: "Turkish Lira" },
+  gold18: { en: "Gold 18k" },
+  coin: { en: "Emami Coin" },
+  "half-coin": { en: "Half Coin" },
+  tether: { en: "Tether (USDT)" },
+  "gold-gr": { en: "Gold (Gram)" },
+  "coin-fardi": { en: "Fardi Coin" },
+};
+
+/** Formats a 24h change value for display: localized digits and separators. */
+export function formatChange(change: number, locale: "fa" | "en"): string {
+  const sign = change > 0 ? "+" : change < 0 ? (locale === "fa" ? "−" : "-") : "";
+  const abs = Math.abs(change).toFixed(1);
+  return locale === "fa"
+    ? `${sign}${toFaDigits(abs).replace(".", "٫")}٪`
+    : `${sign}${abs}%`;
+}
+
+export function formatPrice(raw: string | number | null | undefined): string {
   if (raw == null || raw === "" || raw === "0" || raw === undefined) return "—";
   const clean = String(raw).replace(/[^\d.-]/g, "");
   if (!clean || clean === "-") return "—";
@@ -54,9 +101,38 @@ function formatChangeAbs(n: number | null): number | null {
   return Number(n.toFixed(0));
 }
 
+function computeChangeFromHistory(history: PriceHistoryItem[]): { change: number | null; changeAbs: number | null } {
+  if (history.length < 2) return { change: null, changeAbs: null };
+  const first = history[0].price;
+  const last = history[history.length - 1].price;
+  if (!first || isNaN(first) || isNaN(last)) return { change: null, changeAbs: null };
+  const changeAbs = last - first;
+  const change = (changeAbs / first) * 100;
+  return { change: Number(change.toFixed(2)), changeAbs: formatChangeAbs(changeAbs) };
+}
+
+/** Enrich items with a real change % computed from the live buffer. */
+async function enrichChanges(items: PriceItem[]): Promise<void> {
+  const since24h = Date.now() - 24 * 3600_000;
+  items.forEach((item) => {
+    const series = getLiveHistory(item.id, since24h);
+    const fromLive = liveChange(series);
+    if (fromLive != null) {
+      item.change = fromLive;
+      const first = series[0].price;
+      item.changeAbs = Number((series[series.length - 1].price - first).toFixed(0));
+    }
+  });
+}
+
+// Server-side cache: Telegram is hit at most once per minute.
+let pricesCache: { data: PriceItem[]; at: number } | null = null;
+
 export async function fetchPrices(): Promise<PriceItem[]> {
+  if (pricesCache && Date.now() - pricesCache.at < 60_000) return pricesCache.data;
+
   try {
-    const { fetchFromTelegram, parseTelegramMessage } = await import("./telegram");
+    const { fetchFromTelegram } = await import("./telegram");
     const tgData = await fetchFromTelegram();
 
     if (tgData) {
@@ -70,8 +146,9 @@ export async function fetchPrices(): Promise<PriceItem[]> {
           sellPrice: formatPrice(tgData.usdSell),
           change: null,
           changeAbs: null,
-          updatedAt: tgData.timestamp || "",
+          updatedAt: tgData.timestamp ? tgData.timestamp.slice(11, 16) : "",
           history: [],
+          source: "telegram",
         },
         {
           id: "tether",
@@ -82,18 +159,20 @@ export async function fetchPrices(): Promise<PriceItem[]> {
           sellPrice: formatPrice(tgData.tetherSell),
           change: null,
           changeAbs: null,
-          updatedAt: tgData.timestamp || "",
+          updatedAt: tgData.timestamp ? tgData.timestamp.slice(11, 16) : "",
           history: [],
+          source: "telegram",
         },
         {
           id: "gold18",
-          title: "طلای ۱۸ عیار (آبشده)",
+          title: "طلای ۱۸ عیار (آب‌شده)",
           icon: "🥇",
           price: formatPrice(tgData.goldMelted),
           change: null,
           changeAbs: null,
-          updatedAt: tgData.timestamp || "",
+          updatedAt: tgData.timestamp ? tgData.timestamp.slice(11, 16) : "",
           history: [],
+          source: "telegram",
         },
         {
           id: "gold-gr",
@@ -102,8 +181,9 @@ export async function fetchPrices(): Promise<PriceItem[]> {
           price: formatPrice(tgData.goldGram),
           change: null,
           changeAbs: null,
-          updatedAt: tgData.timestamp || "",
+          updatedAt: tgData.timestamp ? tgData.timestamp.slice(11, 16) : "",
           history: [],
+          source: "telegram",
         },
         {
           id: "coin",
@@ -112,8 +192,9 @@ export async function fetchPrices(): Promise<PriceItem[]> {
           price: formatPrice(tgData.goldCoin),
           change: null,
           changeAbs: null,
-          updatedAt: tgData.timestamp || "",
+          updatedAt: tgData.timestamp ? tgData.timestamp.slice(11, 16) : "",
           history: [],
+          source: "telegram",
         },
         {
           id: "coin-fardi",
@@ -122,170 +203,36 @@ export async function fetchPrices(): Promise<PriceItem[]> {
           price: formatPrice(tgData.goldCoinFardi),
           change: null,
           changeAbs: null,
-          updatedAt: tgData.timestamp || "",
+          updatedAt: tgData.timestamp ? tgData.timestamp.slice(11, 16) : "",
           history: [],
+          source: "telegram",
         },
       ];
-
-      console.log("[prices] Telegram success, items:", prices.length);
-      return prices;
+      await enrichChanges(prices);
+      return finalize(prices);
     }
   } catch (e) {
-    console.warn("[prices] Telegram parse failed:", e);
+    console.warn("[prices] Telegram failed:", e);
   }
 
-  // Fallback to TGJU
-  try {
-    const tgjuData = await fetchFromTGJU();
-    if (tgjuData.length >= 6) {
-      console.log("[prices] TGJU success");
-      return tgjuData;
-    }
-  } catch (e) {
-    console.warn("[prices] TGJU failed:", e);
-  }
-
-  console.warn("[prices] Using fallback data");
+  console.warn("[prices] Telegram unavailable — using static fallback data");
   return fallbackPrices;
 }
 
-const SOURCES = {
-  tgju: "https://api.tgju.org/v1/market/indicator",
-  bonbast: "https://bonbast.com/json",
-} as const;
-
-async function fetchFromTGJU(): Promise<PriceItem[]> {
-  const res = await fetch(SOURCES.tgju, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; Arzino/1.0)",
-      Accept: "application/json",
-    },
-    cache: "no-store",
-  });
-
-  if (!res.ok) throw new Error(`TGJU: ${res.status}`);
-  const data = await res.json();
-  const items: any[] = data?.data?.current || [];
-
-  if (!Array.isArray(items) || items.length === 0) throw new Error("TGJU: Empty data");
-
-  const mapping: Record<string, { id: string; title: string; icon: string }> = {
-    price_dollar_rl: { id: "usd", title: "دلار آمریکا", icon: "💵" },
-    price_eur: { id: "eur", title: "یورو", icon: "💶" },
-    price_gbp: { id: "gbp", title: "پوند انگلیس", icon: "💷" },
-    price_aed: { id: "aed", title: "درهم امارات", icon: "🇦🇪" },
-    price_try: { id: "try", title: "لیر ترکیه", icon: "🇹🇷" },
-    geram18: { id: "gold18", title: "طلای ۱۸ عیار", icon: "🥇" },
-    sekee: { id: "coin", title: "سکه امامی", icon: "🪙" },
-    nim: { id: "half-coin", title: "نیم سکه", icon: "🪙" },
-  };
-
-  return items
-    .filter((it) => mapping[it?.id])
-    .map((it) => {
-      const meta = mapping[it.id];
-      const price = parseFloat(String(it.p).replace(/[^\d.-]/g, ""));
-      const prevPrice = price / (1 + (it.d || 0) / 100);
-      const changeAbs = price - prevPrice;
-
-      return {
-        id: meta.id,
-        title: meta.title,
-        icon: meta.icon,
-        price: formatPrice(it.p),
-        change: it.d != null ? Number(it.d) : null,
-        changeAbs: formatChangeAbs(changeAbs),
-        updatedAt: it.t || new Date().toLocaleTimeString("fa-IR"),
-        history: [],
-      };
-    });
+function finalize(items: PriceItem[]): PriceItem[] {
+  recordLivePrices(items);
+  pricesCache = { data: items, at: Date.now() };
+  console.log(`[prices] source=telegram, items=${items.length}`);
+  return items;
 }
 
-async function fetchFromBonBast(): Promise<Partial<Record<string, PriceItem>>> {
-  const res = await fetch(SOURCES.bonbast, {
-    headers: { "User-Agent": "Mozilla/5.0 (compatible; Arzino/1.0)" },
-    cache: "no-store",
-  });
-
-  if (!res.ok) throw new Error(`BonBast: ${res.status}`);
-  const data = await res.json();
-
-  const mapping: Record<string, { id: string; title: string; icon: string }> = {
-    usd: { id: "usd", title: "دلار آمریکا", icon: "💵" },
-    eur: { id: "eur", title: "یورو", icon: "💶" },
-    gbp: { id: "gbp", title: "پوند انگلیس", icon: "💷" },
-    aed: { id: "aed", title: "درهم امارات", icon: "🇦🇪" },
-    try: { id: "try", title: "لیر ترکیه", icon: "🇹🇷" },
-    gold18: { id: "gold18", title: "طلای ۱۸ عیار", icon: "🥇" },
-    coin: { id: "coin", title: "سکه امامی", icon: "🪙" },
-    half_coin: { id: "half-coin", title: "نیم سکه", icon: "🪙" },
-  };
-
-  const result: Partial<Record<string, PriceItem>> = {};
-  for (const [key, meta] of Object.entries(mapping)) {
-    const value = data[key];
-    if (value != null && value !== "") {
-      const price = parseFloat(String(value).replace(/[^\d.-]/g, ""));
-      if (!isNaN(price)) {
-        result[meta.id] = {
-          ...meta,
-          price: formatPrice(value),
-          change: null,
-          changeAbs: null,
-          updatedAt: new Date().toLocaleTimeString("fa-IR"),
-          history: [],
-        };
-      }
-    }
-  }
-  return result;
-}
-
+/**
+ * History for an asset = points accumulated in the live buffer from the
+ * app's own per-minute Telegram polling. Returns [] when there's genuinely
+ * nothing — the charts are display-only, so this is currently unused but kept
+ * for API compatibility.
+ */
 export async function fetchPriceHistory(id: string, hours: number = 24): Promise<PriceHistoryItem[]> {
-  try {
-    const res = await fetch(
-      `https://api.tgju.org/v1/market/indicator/history?indicator=${id}&period=${hours}h`,
-      {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; Arzino/1.0)",
-          Accept: "application/json",
-        },
-        cache: "no-store",
-      }
-    );
-
-    if (res.ok) {
-      const data = await res.json();
-      const historyItems = data?.data?.history;
-      if (Array.isArray(historyItems) && historyItems.length > 0) {
-        return historyItems
-          .filter((h: any) => h?.p != null && h?.t != null)
-          .map((h: any) => ({
-            timestamp: new Date(h.t).toISOString(),
-            price: parseFloat(String(h.p).replace(/[^\d.-]/g, "")),
-          }))
-          .filter((h: PriceHistoryItem) => !isNaN(h.price));
-      }
-    }
-  } catch (e) {
-    console.warn("[prices] History fetch failed:", e);
-  }
-
-  const fallbackItem = fallbackPrices.find((p) => p.id === id);
-  const basePrice = fallbackItem?.price
-    ? parseFloat(toEnDigits(fallbackItem.price).replace(/,/g, ""))
-    : 50000;
-
-  const history: PriceHistoryItem[] = [];
-  const now = new Date();
-
-  for (let i = hours; i >= 0; i--) {
-    const time = new Date(now.getTime() - i * 60 * 60 * 1000);
-    const variation = (Math.random() - 0.5) * 0.02;
-    const price = basePrice * (1 + variation * (i / hours));
-    history.push({ timestamp: time.toISOString(), price: Math.round(price) });
-  }
-
-  return history;
+  const since = Date.now() - hours * 3600_000;
+  return getLiveHistory(id, since);
 }
-

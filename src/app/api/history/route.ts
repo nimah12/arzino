@@ -4,7 +4,10 @@ import { fetchPriceHistory } from "@/lib/prices";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
-  const hours = parseInt(searchParams.get("hours") || "24", 10);
+  const parsedHours = parseInt(searchParams.get("hours") || "24", 10);
+  const ALLOWED_HOURS = [1, 6, 12, 24, 72, 168];
+  const hours =
+    Number.isFinite(parsedHours) && ALLOWED_HOURS.includes(parsedHours) ? parsedHours : 24;
 
   if (!id) {
     return NextResponse.json(

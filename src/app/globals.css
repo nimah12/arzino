@@ -2,31 +2,66 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+  Design direction: professional market-data dashboard (TradingView-style
+  watchlist), not a decorative glassmorphism landing page. Flat charcoal
+  (dark) / light-gray (light) surfaces, hairline grid lines, monospace
+  tabular numbers, a restrained blue as the one interactive accent, and
+  teal/red for up/down — no blur, no floating gradient blobs, no big
+  rounded cards. Both themes share the same token names.
+*/
+
+/* Light theme (default) */
 :root {
-  --background: #030712;
-  --foreground: #f8fafc;
-  --primary: #10b981;
-  --primary-glow: #34d399;
-  --secondary: #f59e0b;
-  --accent: #f43f5e;
-  --card-bg: rgba(17, 24, 39, 0.7);
-  --card-border: rgba(75, 85, 99, 0.3);
-  --glass-bg: rgba(31, 41, 55, 0.5);
-  --glass-border: rgba(75, 85, 99, 0.2);
+  --bg: #f6f7f9;
+  --bg-panel: #ffffff;
+  --bg-panel-hover: #eef1f5;
+  --border: #e2e6ec;
+  --border-strong: #c9d0da;
+  --text-primary: #16202e;
+  --text-secondary: #566172;
+  --text-tertiary: #8b94a3;
+  --accent: #2f6fe4;
+  --accent-bg: rgba(47, 111, 228, 0.1);
+  --accent-border: rgba(47, 111, 228, 0.32);
+  --on-accent: #ffffff;
+  --up: #0d9b72;
+  --up-bg: rgba(13, 155, 114, 0.1);
+  --down: #d93036;
+  --down-bg: rgba(217, 48, 54, 0.1);
+  --gold: #b8860b;
+  --shimmer-1: #eceff3;
+  --shimmer-2: #e1e5eb;
 }
 
+/* Dark theme */
 .dark {
-  --background: #030712;
-  --foreground: #f8fafc;
+  --bg: #0a0d12;
+  --bg-panel: #10141b;
+  --bg-panel-hover: #151a23;
+  --border: #212733;
+  --border-strong: #2c3444;
+  --text-primary: #e4e7ec;
+  --text-secondary: #848d9c;
+  --text-tertiary: #565f70;
+  --accent: #4c8dff;
+  --accent-bg: rgba(76, 141, 255, 0.12);
+  --accent-border: rgba(76, 141, 255, 0.35);
+  --on-accent: #0a0d12;
+  --up: #1fa67d;
+  --up-bg: rgba(31, 166, 125, 0.12);
+  --down: #e5484d;
+  --down-bg: rgba(229, 72, 77, 0.12);
+  --gold: #c9a227;
+  --shimmer-1: #151a23;
+  --shimmer-2: #1c222d;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-primary: var(--primary);
-  --color-secondary: var(--secondary);
-  --color-accent: var(--accent);
-  --font-sans: var(--font-inter);
+  --color-background: var(--bg);
+  --color-foreground: var(--text-primary);
+  --color-primary: var(--accent);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-persian: var(--font-vazirmatn);
 }
@@ -36,60 +71,77 @@ html {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-inter), var(--font-vazirmatn), system-ui, sans-serif;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-vazirmatn), var(--font-geist-sans), system-ui, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* RTL support for Persian content */
 * {
   box-sizing: border-box;
 }
 
-/* Font classes */
 .font-persian {
-  font-family: var(--font-vazirmatn), var(--font-inter), system-ui, sans-serif;
+  font-family: var(--font-vazirmatn), var(--font-geist-sans), system-ui, sans-serif;
 }
 
 .font-english {
-  font-family: var(--font-inter), system-ui, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Tabular numbers for prices */
+.font-mono-data {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+}
+
 .tabular-nums {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
 
-/* Glassmorphism */
-.glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--glass-border);
+/* Panels: flat surface, hairline border, small radius — never the big
+   blurred glass cards. */
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 
-.glass-strong {
-  background: rgba(17, 24, 39, 0.85);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  border: 1px solid rgba(75, 85, 99, 0.4);
+/* Live indicator dot */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.live-dot {
+  animation: live-pulse 2s ease-in-out infinite;
 }
 
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, var(--primary), var(--primary-glow));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
 }
 
-.gradient-text-gold {
-  background: linear-gradient(135deg, #fbbf24, #f59e0b, #fbbf24);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+@keyframes flash-up {
+  0% { background-color: var(--up-bg); }
+  100% { background-color: transparent; }
+}
+@keyframes flash-down {
+  0% { background-color: var(--down-bg); }
+  100% { background-color: transparent; }
+}
+.flash-up { animation: flash-up 1.2s ease-out; }
+.flash-down { animation: flash-down 1.2s ease-out; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, var(--shimmer-1) 25%, var(--shimmer-2) 50%, var(--shimmer-1) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }
 
 /* Custom scrollbar */
@@ -97,187 +149,22 @@ body {
   width: 8px;
   height: 8px;
 }
-
 ::-webkit-scrollbar-track {
-  background: #111827;
+  background: var(--bg);
 }
-
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #374151, #4b5563);
+  background: var(--border-strong);
   border-radius: 4px;
-  border: 1px solid #1f2937;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #4b5563, #6b7280);
+  background: var(--text-tertiary);
 }
 
-/* Focus styles */
 *:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
-/* Animations */
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slide-down {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(16, 185, 129, 0.5); }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-
-@keyframes ticker {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.5s ease-out forwards;
-}
-
-.animate-slide-up {
-  animation: slide-up 0.6s ease-out forwards;
-}
-
-.animate-slide-down {
-  animation: slide-down 0.6s ease-out forwards;
-}
-
-.animate-pulse-glow {
-  animation: pulse-glow 3s ease-in-out infinite;
-}
-
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-}
-
-.animate-ticker {
-  animation: ticker 30s linear infinite;
-}
-
-/* Staggered animation delays */
-.delay-1 { animation-delay: 100ms; }
-.delay-2 { animation-delay: 200ms; }
-.delay-3 { animation-delay: 300ms; }
-.delay-4 { animation-delay: 400ms; }
-.delay-5 { animation-delay: 500ms; }
-.delay-6 { animation-delay: 600ms; }
-
-/* Price card hover effects */
-.price-card {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.price-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-  border-color: var(--primary) !important;
-}
-
-/* Gradient border */
-.gradient-border {
-  position: relative;
-  background: var(--glass-bg);
-}
-
-.gradient-border::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  background: linear-gradient(135deg, var(--primary), transparent 50%, var(--secondary));
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: -1;
-}
-
-.gradient-border:hover::before {
-  opacity: 1;
-}
-
-/* Loading shimmer */
-.shimmer {
-  background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-
-/* Ticker marquee */
-.ticker-content {
-  display: flex;
-  white-space: nowrap;
-  animation: ticker 40s linear infinite;
-}
-
-.ticker-content:hover {
-  animation-play-state: paused;
-}
-
-/* Language switcher */
-.lang-btn {
-  @apply px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200;
-}
-
-.lang-btn-active {
-  @apply bg-primary/20 text-primary border border-primary/30;
-}
-
-.lang-btn-inactive {
-  @apply bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-200;
-}
-
-/* Chart container */
-.chart-container {
-  position: relative;
-  height: 100%;
-  width: 100%;
-}
-
-/* Toast notification */
-.toast-enter {
-  animation: slide-down 0.3s ease-out;
-}
-
-.toast-exit {
-  animation: fade-in 0.2s ease-in reverse;
-}
-
-/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -287,26 +174,269 @@ body {
   }
 }
 
-/* Selection */
 ::selection {
-  background: var(--primary);
-  color: #030712;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
-/* Input styles */
-input, select {
-  @apply bg-gray-900/50 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all;
-}
-
-/* Button styles */
 .btn-primary {
-  @apply bg-primary hover:bg-primary/90 text-black font-medium px-6 py-3 rounded-xl transition-all duration-200 shadow-lg shadow-primary/25 hover:shadow-primary/40;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  transition: opacity 0.15s ease;
 }
-
-.btn-secondary {
-  @apply bg-gray-800 hover:bg-gray-700 text-white font-medium px-6 py-3 rounded-xl transition-all duration-200 border border-gray-700;
+.btn-primary:hover {
+  opacity: 0.85;
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-ghost {
-  @apply bg-transparent hover:bg-white/5 text-gray-300 hover:text-white font-medium px-4 py-2 rounded-lg transition-all duration-200;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+.btn-ghost:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--bg-panel-hover);
+}
+
+/* Icon-only button (theme toggle) */
+.icon-btn {
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.icon-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--bg-panel-hover);
+}
+
+/* Segmented control (language switch) */
+.seg-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+}
+.seg-btn {
+  padding: 0.28rem 0.7rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.seg-btn:hover {
+  color: var(--text-secondary);
+}
+.seg-btn-active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+/* Search input */
+.search-wrap {
+  position: relative;
+}
+.search-wrap svg {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  inset-inline-start: 0.6rem;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+.search-input {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-family: inherit;
+  padding: 0.42rem 0.75rem;
+  padding-inline-start: 1.75rem;
+  width: 100%;
+  max-width: 220px;
+  transition: border-color 0.15s ease, background-color 0.2s ease;
+}
+.search-input::placeholder {
+  color: var(--text-tertiary);
+}
+.search-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Market overview cards */
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+.overview-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  transition: border-color 0.15s ease, background-color 0.2s ease;
+}
+.overview-card:hover {
+  border-color: var(--border-strong);
+}
+.overview-label {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+}
+.overview-price {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.overview-change {
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+/* Section header */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+.section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Watchlist table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.data-table thead th {
+  text-align: start;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background-color 0.1s ease;
+}
+.data-table tbody tr:hover {
+  background: var(--bg-panel-hover);
+}
+.data-table tbody td {
+  padding: 0.7rem 0.9rem;
+  vertical-align: middle;
+  text-align: start;
+}
+
+/* Chart cell button (opens the large live chart modal) */
+.chart-cell-btn {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+.chart-cell-btn:hover {
+  background: var(--bg-panel-hover);
+}
+.chart-cell-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Display-only animated chart (SVG) */
+@keyframes chart-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+.chart-line {
+  stroke-dasharray: 1;
+  animation: chart-draw 1.6s ease-out forwards;
+}
+@keyframes chart-area-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.chart-area {
+  animation: chart-area-fade 1.2s ease-out forwards;
+}
+@keyframes chart-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.chart-end-dot {
+  animation: chart-dot-pulse 2s ease-in-out infinite;
+}
+@keyframes chart-halo-pulse {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.chart-end-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: chart-halo-pulse 2s ease-out infinite;
+}
+
+/* Live chart modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 50;
+  animation: fade-in 0.15s ease-out;
+}
+.modal-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 1rem 1.25rem 1.25rem;
+  width: 100%;
+  max-width: 560px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
 }

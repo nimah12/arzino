@@ -28,21 +28,20 @@ function cleanNumber(str: string): string {
 }
 
 export function parseTelegramMessage(html: string): TgPriceData | null {
-  // Find the first message with دلار فردایی (latest price message)
-  const msgMatch = html.match(
-    /<div class="tgme_widget_message_text[^>]*>([\s\S]*?)<\/div>\s*<div class="tgme_widget_message_reactions/
-  );
+  // Extract the text of the FIRST price message, whatever element follows
+  // it. Telegram sometimes omits the reactions block, so we can't anchor on
+  // `tgme_widget_message_reactions` — the div must be matched independently.
+  const textBlocks = html.match(/<div class="tgme_widget_message_text[^>]*>([\s\S]*?)<\/div>/g);
+  if (!textBlocks || textBlocks.length === 0) return null;
 
-  if (!msgMatch) return null;
-
-  let raw = msgMatch[1];
+  let raw = textBlocks[0];
   // Strip HTML tags but keep <br>
   raw = raw.replace(/<br\s*\/?>/gi, "\n");
   raw = raw.replace(/<[^>]+>/g, "");
   raw = raw.replace(/&nbsp;/g, " ");
-  raw = raw.replace(/&/g, "&");
-  raw = raw.replace(/</g, "<");
-  raw = raw.replace(/>/g, ">");
+  raw = raw.replace(/&amp;/g, "&");
+  raw = raw.replace(/&lt;/g, "<");
+  raw = raw.replace(/&gt;/g, ">");
 
   // Remove zero-width space (Telegram inserts ZWS inside numbers)
   raw = raw.replace(/‌/g, "");
@@ -132,6 +131,18 @@ export function parseTelegramMessage(html: string): TgPriceData | null {
       const m = line.match(/\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\]/);
       if (m) timestamp = m[1];
     }
+  }
+
+  // If the message format changed (channel redesign, ad inserted, etc.)
+  // our regexes will match nothing and we'd otherwise report a "successful"
+  // parse that's actually empty. Treat that as a failure so the caller
+  // falls through to the next data source instead of showing a card full
+  // of dashes.
+  const hasUsdData = usdBuy != null || usdSell != null || usdDeal != null;
+  const hasTetherData = tetherBuy != null || tetherSell != null;
+  if (!hasUsdData && !hasTetherData) {
+    console.warn("[telegram] Parsed message but found no recognizable price fields — treating as failed parse");
+    return null;
   }
 
   return {

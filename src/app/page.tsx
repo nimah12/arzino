@@ -1,94 +1,188 @@
 "use client";
 
-import { useEffect, useState, useCallback, createContext, useContext } from "react";
-import type { PriceItem } from "@/lib/prices";
+import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  ASSET_TITLES,
+  formatChange,
+  toEnDigits,
+  type PriceItem,
+} from "@/lib/prices";
 import PriceCard from "./components/PriceCard";
+import PriceChart from "./components/PriceChart";
+import { useTheme } from "@/lib/theme";
 import {
   formatJalaliDateTime,
   formatJalaliDateLong,
   formatGregorianDateTime,
   formatGregorianDateLong,
-  toEnDigits,
-  toFaDigits,
 } from "@/lib/jalali";
 
 type Locale = "fa" | "en";
-
-interface LocaleContextType {
-  locale: Locale;
-  setLocale: (l: Locale) => void;
-  t: (key: string) => string;
-}
-
-const LocaleContext = createContext<LocaleContextType | null>(null);
-
-function useLocale() {
-  const ctx = useContext(LocaleContext);
-  if (!ctx) throw new Error("useLocale must be used within LocaleProvider");
-  return ctx;
-}
 
 const translations: Record<Locale, Record<string, string>> = {
   fa: {
     appName: "ارزینو",
     subtitle: "قیمت لحظه‌ای ارز، طلا و سکه",
-    persianDate: "تاریخ شمسی",
-    persianTime: "ساعت شمسی",
-    gregorianDate: "تاریخ میلادی",
-    gregorianTime: "ساعت میلادی",
-    lastTelegram: "آخرین پیام قیمت در تلگرام:",
     loading: "در حال بارگذاری قیمت‌ها...",
     refreshing: "در حال به‌روزرسانی...",
     refresh: "رفرش",
-    lastUpdate: "آخرین به‌روزرسانی:",
+    lastUpdate: "آخرین به‌روزرسانی",
     retry: "تلاش مجدد",
     errorFetch: "خطا در دریافت قیمت‌ها. دوباره تلاش کنید.",
     noData: "هیچ داده‌ای برای نمایش وجود ندارد.",
+    noResults: "دارایی‌ای با این نام پیدا نشد.",
     dataSource: "منبع داده:",
-    builtWith: "ساخته شده با",
     langFA: "فارسی",
     langEN: "English",
-    title: "ارزینو | قیمت لحظه‌ای ارز، طلا و سکه",
-    change24h: "تغییرات ۲۴ ساعته",
-    toman: "تومان",
-    buy: "خرید",
-    sell: "فروش",
-    chart: "نمودار",
+    colName: "دارایی",
+    colPrice: "قیمت",
+    colBuy: "خرید",
+    colSell: "فروش",
+    colChange: "تغییر ۲۴س",
+    colChart: "روند",
+    colUpdated: "زمان",
+    live: "زنده",
+    market: "بازار",
+    search: "جستجوی دارایی...",
+    themeToDark: "حالت تیره",
+    themeToLight: "حالت روشن",
+    assets: "دارایی",
+    close: "بستن",
+    liveChart: "نمودار لحظه‌ای",
+    updatesEveryMin: "به‌روزرسانی خودکار هر ۱ دقیقه",
+    unitToman: "تومان",
+    unitNote: "واحد قیمت: تومان",
   },
   en: {
     appName: "Arzino",
     subtitle: "Live Currency, Gold & Coin Prices",
-    persianDate: "Persian Date",
-    persianTime: "Persian Time",
-    gregorianDate: "Gregorian Date",
-    gregorianTime: "Gregorian Time",
-    lastTelegram: "Latest Telegram Price Update:",
     loading: "Loading prices...",
     refreshing: "Refreshing...",
     refresh: "Refresh",
-    lastUpdate: "Last updated:",
+    lastUpdate: "Last update",
     retry: "Retry",
     errorFetch: "Failed to fetch prices. Please try again.",
     noData: "No data available.",
-    dataSource: "Data source:",
-    builtWith: "Built with",
+    noResults: "No assets match your search.",
+    dataSource: "Source:",
     langFA: "فارسی",
     langEN: "English",
-    title: "Arzino | Live Currency, Gold & Coin Prices",
-    change24h: "24h Change",
-    toman: "Toman",
-    buy: "Buy",
-    sell: "Sell",
-    chart: "Chart",
+    colName: "Asset",
+    colPrice: "Price",
+    colBuy: "Buy",
+    colSell: "Sell",
+    colChange: "24h",
+    colChart: "Trend",
+    colUpdated: "Time",
+    live: "Live",
+    market: "Market",
+    search: "Search assets...",
+    themeToDark: "Switch to dark mode",
+    themeToLight: "Switch to light mode",
+    assets: "assets",
+    close: "Close",
+    liveChart: "Live chart",
+    updatesEveryMin: "Auto-refresh every minute",
+    unitToman: "Toman",
+    unitNote: "Prices in Toman",
   },
 };
 
-// Helper to format numbers based on locale
-function formatNumber(value: string, locale: Locale): string {
-  if (locale === "en") {
-    return toEnDigits(value);
-  }
-  return value; // Already in Persian digits from formatPrice
+const OVERVIEW_IDS = ["usd", "tether", "gold18", "coin"];
+
+function toNum(s: string): number | null {
+  const n = parseFloat(String(s).replace(/[^\d.-]/g, ""));
+  return isNaN(n) ? null : n;
+}
+
+function OverviewCard({ item, locale }: { item: PriceItem; locale: Locale }) {
+  const en = locale === "en";
+  const title = en ? ASSET_TITLES[item.id]?.en ?? item.title : item.title;
+  const price = en ? toEnDigits(item.price) : item.price;
+  const change = item.change;
+  const isUp = change != null && change > 0;
+  const isDown = change != null && change < 0;
+
+  return (
+    <div className="overview-card">
+      <span className="overview-label flex items-center gap-1.5">
+        <span aria-hidden="true">{item.icon}</span>
+        <span className="truncate">{title}</span>
+      </span>
+      <span className="overview-price font-mono-data tabular-nums" style={{ color: "var(--text-primary)" }}>
+        {price}
+      </span>
+      <span
+        className="overview-change font-mono-data tabular-nums"
+        style={{ color: isUp ? "var(--up)" : isDown ? "var(--down)" : "var(--text-tertiary)" }}
+      >
+        {change != null ? `${isUp ? "▲" : isDown ? "▼" : ""} ${formatChange(change, locale)}` : "—"}
+      </span>
+    </div>
+  );
+}
+
+function ChartModal({
+  id,
+  basePrice,
+  locale,
+  onClose,
+}: {
+  id: string;
+  basePrice?: string | null;
+  locale: Locale;
+  onClose: () => void;
+}) {
+  const t = (key: string) => translations[locale][key] || key;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("liveChart")}
+    >
+      <div className="modal-panel">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            {t("liveChart")}
+          </h3>
+          <button
+            onClick={onClose}
+            className="icon-btn"
+            aria-label={t("close")}
+            title={t("close")}
+          >
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <PriceChart id={id} locale={locale} height={260} basePrice={basePrice} />
+        <p className="mt-3 text-xs flex items-center gap-1.5" style={{ color: "var(--text-tertiary)" }}>
+          <span className="w-1.5 h-1.5 rounded-full live-dot" style={{ background: "var(--up)" }} />
+          {t("updatesEveryMin")}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function Home() {
@@ -96,16 +190,28 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [telTime, setTelTime] = useState<string | null>(null);
-  const [locale, setLocale] = useState<Locale>("fa");
+  const [locale, setLocale] = useState<Locale>(() => {
+    if (typeof window === "undefined") return "fa";
+    const stored = localStorage.getItem("arzino-locale");
+    return stored === "en" || stored === "fa" ? stored : "fa";
+  });
+  const [query, setQuery] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [now, setNow] = useState(new Date());
+  const [flashes, setFlashes] = useState<Record<string, { dir: "up" | "down"; tick: number }>>({});
+  const [selectedChart, setSelectedChart] = useState<string | null>(null);
+  const prevPricesRef = useRef<Record<string, string>>({});
+  const tickRef = useRef(0);
+  const { theme, toggleTheme } = useTheme();
 
   const t = (key: string) => translations[locale][key] || key;
 
-  // Update document direction and language on locale change
   useEffect(() => {
     document.documentElement.dir = locale === "fa" ? "rtl" : "ltr";
     document.documentElement.lang = locale === "fa" ? "fa" : "en";
+    try {
+      localStorage.setItem("arzino-locale", locale);
+    } catch {}
   }, [locale]);
 
   const loadPrices = useCallback(async () => {
@@ -116,20 +222,32 @@ export default function Home() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        setPrices(json.data);
-        setLastFetch(new Date());
-        const tgItem = json.data[0];
-        if (tgItem?.updatedAt) {
-          setTelTime(tgItem.updatedAt);
+        const next: PriceItem[] = json.data;
+        const prev = prevPricesRef.current;
+        const nextFlashes: Record<string, { dir: "up" | "down"; tick: number }> = {};
+        for (const item of next) {
+          const oldP = toNum(prev[item.id] ?? "");
+          const newP = toNum(item.price);
+          if (oldP != null && newP != null && newP !== oldP) {
+            nextFlashes[item.id] = {
+              dir: newP > oldP ? "up" : "down",
+              tick: ++tickRef.current,
+            };
+          }
         }
+        prevPricesRef.current = Object.fromEntries(next.map((i) => [i.id, i.price]));
+        setFlashes(nextFlashes);
+        setPrices(next);
+        setLastFetch(new Date());
       } else {
         throw new Error("Invalid data format");
       }
-    } catch (err) {
+    } catch {
       setError(t("errorFetch"));
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locale]);
 
   useEffect(() => {
@@ -137,8 +255,6 @@ export default function Home() {
     const interval = setInterval(loadPrices, 60_000);
     return () => clearInterval(interval);
   }, [loadPrices]);
-
-  const [now, setNow] = useState(new Date());
 
   useEffect(() => {
     setMounted(true);
@@ -152,138 +268,129 @@ export default function Home() {
   const gregorianNow = formatGregorianDateTime(now);
   const gregorianNowLong = formatGregorianDateLong(now);
 
+  const normalizedQuery = query.trim().toLowerCase();
+  const filtered =
+    normalizedQuery === ""
+      ? prices
+      : prices.filter((item) => {
+          const fa = item.title.toLowerCase();
+          const en = ASSET_TITLES[item.id]?.en.toLowerCase() ?? "";
+          return fa.includes(normalizedQuery) || en.includes(normalizedQuery);
+        });
+
+  const modalItem = selectedChart ? prices.find((p) => p.id === selectedChart) : null;
+  const animKey = now.getTime();
+
   if (!mounted) {
     return (
-      <main className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-        <div className="shimmer animate-pulse rounded-xl w-64 h-8" />
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg)" }}>
+        <div className="shimmer rounded w-56 h-6" />
       </main>
     );
   }
 
   return (
-    <LocaleContext.Provider value={{ locale, setLocale, t }}>
-      <main className="min-h-screen bg-gray-950 text-white relative overflow-hidden">
-        {/* Animated background gradient */}
-        <div className="fixed inset-0 -z-10" aria-hidden="true">
-          <div
-            className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl animate-float"
-          />
-          <div
-            className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl animate-float"
-            style={{ animationDelay: "-3s" }}
-          />
-          <div
-            className="absolute top-1/2 left-1/2 w-72 h-72 bg-rose-500/5 rounded-full blur-3xl animate-float"
-            style={{ animationDelay: "-1.5s" }}
-          />
-        </div>
-
-        <div className="relative z-10 max-w-7xl mx-auto px-4 py-8">
-          {/* Header */}
-          <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 animate-slide-down">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-500/25">
-                <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="text-white">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M2 17l10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-3xl md:text-4xl font-bold tracking-tight gradient-text">
-                  {t("appName")}
-                </h1>
-                <p className="text-gray-400 text-sm mt-1">{t("subtitle")}</p>
-              </div>
+    <main className="min-h-screen" style={{ background: "var(--bg)" }}>
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        {/* Top bar */}
+        <header className="flex items-center justify-between gap-4 mb-4 pb-4" style={{ borderBottom: "1px solid var(--border)" }}>
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-8 h-8 rounded flex items-center justify-center shrink-0"
+              style={{ background: "var(--bg-panel)", border: "1px solid var(--border-strong)" }}
+            >
+              <svg width="16" height="16" fill="none" stroke="var(--accent)" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="m19 9-5 5-4-4-3 3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </div>
+            <div>
+              <h1 className="text-base font-bold leading-none" style={{ color: "var(--text-primary)" }}>
+                {t("appName")}
+              </h1>
+              <p className="text-xs leading-none mt-1" style={{ color: "var(--text-tertiary)" }}>{t("subtitle")}</p>
+            </div>
+            <span
+              className="hidden sm:flex items-center gap-1.5 text-[11px] px-2 py-1 rounded"
+              style={{ background: "var(--up-bg)", color: "var(--up)" }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full live-dot" style={{ background: "var(--up)" }} />
+              {t("live")}
+            </span>
+          </div>
 
-            {/* Language Switcher */}
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              className="icon-btn"
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? t("themeToLight") : t("themeToDark")}
+              title={theme === "dark" ? t("themeToLight") : t("themeToDark")}
+            >
+              {theme === "dark" ? (
+                <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              ) : (
+                <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              )}
+            </button>
+            <div className="seg-control" role="group" aria-label={locale === "fa" ? "انتخاب زبان" : "Language"}>
               <button
                 onClick={() => setLocale("fa")}
-                className={`lang-btn ${locale === "fa" ? "lang-btn-active" : "lang-btn-inactive"}`}
+                className={`seg-btn ${locale === "fa" ? "seg-btn-active" : ""}`}
                 aria-pressed={locale === "fa"}
               >
                 {t("langFA")}
               </button>
               <button
                 onClick={() => setLocale("en")}
-                className={`lang-btn ${locale === "en" ? "lang-btn-active" : "lang-btn-inactive"}`}
+                className={`seg-btn ${locale === "en" ? "seg-btn-active" : ""}`}
                 aria-pressed={locale === "en"}
               >
                 {t("langEN")}
               </button>
             </div>
-          </header>
-
-          {/* Date & Time Bar */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 animate-slide-up delay-1">
-            <DateTimeCard
-              label={t("persianDate")}
-              value={locale === "fa" ? jalaliNowLong : gregorianNowLong}
-              icon={<CalendarIcon />}
-              className={locale === "fa" ? "font-persian" : "font-english"}
-            />
-            <DateTimeCard
-              label={t("persianTime")}
-              value={locale === "fa" ? jalaliNow : gregorianNow}
-              icon={<ClockIcon />}
-              className={locale === "fa" ? "font-persian tabular-nums" : "font-english tabular-nums"}
-            />
-            <DateTimeCard
-              label={t("gregorianDate")}
-              value={locale === "fa" ? gregorianNowLong : jalaliNowLong}
-              icon={<CalendarIcon />}
-              className={locale === "fa" ? "font-english" : "font-persian"}
-            />
-            <DateTimeCard
-              label={t("gregorianTime")}
-              value={locale === "fa" ? gregorianNow : jalaliNow}
-              icon={<ClockIcon />}
-              className={locale === "fa" ? "font-english tabular-nums" : "font-persian tabular-nums"}
-            />
           </div>
+        </header>
 
-          {/* Telegram timestamp */}
-          {telTime && (
-            <div className="mb-6 p-3 glass rounded-xl text-center text-xs text-gray-400 animate-slide-up delay-2">
-              <span className="flex items-center justify-center gap-2">
-                <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/>
-                </svg>
-                {t("lastTelegram")} <span className="tabular-nums text-emerald-400">{formatNumber(telTime, locale)}</span>
-              </span>
-            </div>
-          )}
-
-          {/* Status bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 animate-slide-up delay-3">
-            <div className="flex items-center gap-3 text-sm text-gray-400">
-              {lastFetch && (
-                <>
-                  {t("lastUpdate")}{" "}
+        {/* Compact meta bar: dates, refresh status */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 text-xs" style={{ color: "var(--text-tertiary)" }}>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 font-mono-data tabular-nums">
+            <span className={locale === "fa" ? "font-persian" : "font-english"}>
+              {locale === "fa" ? jalaliNowLong : gregorianNowLong}
+            </span>
+            <span style={{ color: "var(--border-strong)" }}>·</span>
+            <span>{locale === "fa" ? jalaliNow : gregorianNow}</span>
+            <span style={{ color: "var(--border-strong)" }}>·</span>
+            <span className="font-english">{locale === "fa" ? gregorianNowLong : jalaliNowLong}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            {lastFetch && (
+              <span>
+                {t("lastUpdate")}:{" "}
+                <span className="font-mono-data tabular-nums" style={{ color: "var(--text-secondary)" }}>
                   {lastFetch.toLocaleTimeString(locale === "fa" ? "fa-IR" : "en-US", {
                     hour: "2-digit",
                     minute: "2-digit",
                     second: "2-digit",
                   })}
-                </>
-              )}
-              {loading && (
-                <span className="flex items-center gap-1 text-emerald-400">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                  {t("refreshing")}
                 </span>
-              )}
-            </div>
-            <button
-              onClick={loadPrices}
-              disabled={loading}
-              className="btn-secondary text-sm"
-            >
+              </span>
+            )}
+            <button onClick={loadPrices} disabled={loading} className="btn-ghost text-xs flex items-center gap-1.5">
               <svg
-                width="16"
-                height="16"
+                width="13"
+                height="13"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
@@ -294,135 +401,143 @@ export default function Home() {
                 <path d="M1 20v-6h6" />
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
               </svg>
-              <span>{loading ? t("refreshing") : t("refresh")}</span>
+              {loading ? t("refreshing") : t("refresh")}
             </button>
           </div>
+        </div>
 
-          {/* Error toast */}
-          {error && (
-            <div className="mb-6 p-4 glass-strong rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 animate-slide-down toast-enter">
-              <div className="flex items-center justify-between gap-4">
-                <span>{error}</span>
-                <button
-                  onClick={loadPrices}
-                  className="btn-ghost text-sm"
-                >
-                  {t("retry")}
-                </button>
-              </div>
-            </div>
-          )}
+        {/* Error toast */}
+        {error && (
+          <div
+            className="mb-4 p-3 rounded text-sm flex items-center justify-between gap-4"
+            style={{ background: "var(--down-bg)", border: "1px solid rgba(229,72,77,0.3)", color: "var(--down)" }}
+          >
+            <span className="flex items-center gap-2">
+              <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              {error}
+            </span>
+            <button onClick={loadPrices} className="btn-ghost text-xs">
+              {t("retry")}
+            </button>
+          </div>
+        )}
 
-          {/* Price Grid */}
+        {/* Market overview cards */}
+        {prices.length > 0 && (
+          <section className="overview-grid mb-5 animate-fade-in" aria-label={t("market")}>
+            {OVERVIEW_IDS.map((id) => {
+              const item = prices.find((p) => p.id === id);
+              return item ? <OverviewCard key={id} item={item} locale={locale} /> : null;
+            })}
+          </section>
+        )}
+
+        {/* Section header: title + search */}
+        <div className="section-header">
+          <h2 className="section-title">
+            {t("market")}{" "}
+            <span className="font-mono-data tabular-nums" style={{ color: "var(--text-tertiary)", fontWeight: 500 }}>
+              ({filtered.length} {filtered.length === 1 ? (locale === "fa" ? t("assets") : "asset") : t("assets")})
+            </span>
+            <span
+              className="font-mono-data tabular-nums ms-2 px-1.5 py-0.5 rounded text-[10px]"
+              style={{ background: "var(--accent-bg)", color: "var(--accent)" }}
+            >
+              {t("unitNote")}
+            </span>
+          </h2>
+          <div className="search-wrap">
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              className="search-input"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("search")}
+              aria-label={t("search")}
+            />
+          </div>
+        </div>
+
+        {/* Watchlist table */}
+        <div className="panel overflow-x-auto animate-fade-in">
           {loading && prices.length === 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 animate-fade-in">
+            <div className="p-4 space-y-2">
               {[...Array(6)].map((_, i) => (
-                <PriceCardSkeleton key={i} />
+                <div key={i} className="h-10 shimmer rounded" />
               ))}
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 animate-fade-in">
-              {prices.map((item) => (
-                <PriceCard key={item.id} item={item} locale={locale} />
-              ))}
-              {prices.length === 0 && !loading && (
-                <div className="col-span-full text-center py-12 text-gray-500 glass rounded-2xl">
-                  {t("noData")}
-                </div>
-              )}
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>{t("colName")}</th>
+                  <th>
+                    {t("colPrice")}{" "}
+                    <span className="font-mono-data" style={{ color: "var(--text-tertiary)" }}>({t("unitToman")})</span>
+                  </th>
+                  <th className="hidden sm:table-cell">{t("colBuy")}</th>
+                  <th className="hidden sm:table-cell">{t("colSell")}</th>
+                  <th>{t("colChange")}</th>
+                  <th className="hidden md:table-cell">{t("colChart")}</th>
+                  <th className="hidden lg:table-cell">{t("colUpdated")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((item) => {
+                  const flash = flashes[item.id];
+                  return (
+                    <PriceCard
+                      key={item.id}
+                      item={item}
+                      locale={locale}
+                      flashDir={flash?.dir}
+                      flashTick={flash?.tick}
+                      animKey={animKey}
+                      onOpenChart={setSelectedChart}
+                    />
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+          {!loading && filtered.length === 0 && (
+            <div className="text-center py-12 text-sm" style={{ color: "var(--text-tertiary)" }}>
+              {prices.length === 0 ? t("noData") : t("noResults")}
             </div>
           )}
-
-          {/* Footer */}
-          <footer className="mt-12 pt-8 border-t border-gray-800/50 animate-fade-in delay-5">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs text-gray-500">
-              <p className="flex items-center gap-2">
-                {t("dataSource")}{" "}
-                <a href="https://t.me/se_pz" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 underline transition-colors flex items-center gap-1">
-                  <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/>
-                  </svg>
-                  @se_pz
-                </a>
-              </p>
-              <p className="flex items-center gap-2 flex-wrap justify-center sm:justify-end">
-                {t("builtWith")}{" "}
-                <span className="text-gray-300">Next.js</span>
-                <span className="text-gray-500">+</span>
-                <span className="text-gray-300">TypeScript</span>
-                <span className="text-gray-500">+</span>
-                <span className="text-gray-300">Tailwind CSS</span>
-              </p>
-              <p className="flex items-center justify-center sm:justify-end">
-                <a href="https://github.com/nimah12/arzino" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-emerald-400 transition-colors group">
-                  <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" className="group-hover:text-emerald-400 transition-colors">
-                    <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
-                  </svg>
-                  github.com/nimah12/arzino
-                </a>
-              </p>
-            </div>
-          </footer>
         </div>
-      </main>
-    </LocaleContext.Provider>
-  );
-}
 
-// Date/Time Card Component
-function DateTimeCard({ label, value, icon: Icon, className = "" }: {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`glass p-4 rounded-2xl ${className}`}>
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-gray-500">{Icon}</span>
-        <span className="text-xs text-gray-500">{label}</span>
+        {/* Footer */}
+        <footer className="mt-6 pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs" style={{ borderTop: "1px solid var(--border)", color: "var(--text-tertiary)" }}>
+          <p className="flex items-center gap-1.5">
+            {t("unitNote")} · {t("lastUpdate")}:{" "}
+            <span className="font-mono-data tabular-nums" style={{ color: "var(--text-secondary)" }}>
+              {lastFetch ? lastFetch.toLocaleTimeString(locale === "fa" ? "fa-IR" : "en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"}
+            </span>
+          </p>
+          <a href="https://github.com/nimah12/arzino" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: "var(--text-tertiary)" }}>
+            github.com/nimah12/arzino
+          </a>
+        </footer>
       </div>
-      <div className="text-lg font-medium text-white">{value}</div>
-    </div>
-  );
-}
 
-function CalendarIcon() {
-  return (
-    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  );
-}
-
-// Skeleton for loading state
-function PriceCardSkeleton() {
-  return (
-    <div className="glass p-5 rounded-2xl space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl shimmer" />
-        <div className="flex-1">
-          <div className="h-5 w-3/4 shimmer rounded" />
-          <div className="h-3 w-1/2 shimmer rounded mt-1" />
-        </div>
-      </div>
-      <div className="h-10 w-full shimmer rounded-xl" />
-      <div className="flex gap-2">
-        <div className="flex-1 h-20 shimmer rounded-lg" />
-        <div className="flex-1 h-20 shimmer rounded-lg" />
-      </div>
-    </div>
+      {/* Live chart modal */}
+      {modalItem && selectedChart && (
+        <ChartModal
+          id={selectedChart}
+          basePrice={modalItem.price}
+          locale={locale}
+          onClose={() => setSelectedChart(null)}
+        />
+      )}
+    </main>
   );
 }
