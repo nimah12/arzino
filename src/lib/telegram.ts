@@ -21,38 +21,29 @@ export type TgPriceData = {
 };
 
 function cleanNumber(str: string): string {
-  return str
-    .replace(/[^\d,]/g, "")
-    .replace(/,/g, "")
-    .trim();
+  return str.replace(/[^\d]/g, "").trim();
 }
 
-export function parseTelegramMessage(html: string): TgPriceData | null {
-  // Extract the text of the FIRST price message, whatever element follows
-  // it. Telegram sometimes omits the reactions block, so we can't anchor on
-  // `tgme_widget_message_reactions` — the div must be matched independently.
-  const textBlocks = html.match(/<div class="tgme_widget_message_text[^>]*>([\s\S]*?)<\/div>/g);
-  if (!textBlocks || textBlocks.length === 0) return null;
+/** Strip HTML from a block but keep line breaks; drop ZWNJ chars Telegram
+ *  inserts inside numbers (e.g. 194,‌‌500). */
+function stripTags(block: string): string {
+  return block
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/‌/g, "");
+}
 
-  let raw = textBlocks[0];
-  // Strip HTML tags but keep <br>
-  raw = raw.replace(/<br\s*\/?>/gi, "\n");
-  raw = raw.replace(/<[^>]+>/g, "");
-  raw = raw.replace(/&nbsp;/g, " ");
-  raw = raw.replace(/&amp;/g, "&");
-  raw = raw.replace(/&lt;/g, "<");
-  raw = raw.replace(/&gt;/g, ">");
+function hasPriceLine(raw: string): boolean {
+  return /(دلار.{0,10}تهران|تتر.{0,10}USDT|#طلا_گرمی|#آبشده_نقدی|سکه|🔴)/.test(raw);
+}
 
-  // Remove zero-width space (Telegram inserts ZWS inside numbers)
-  raw = raw.replace(/‌/g, "");
-
-  // Split into lines and process each line individually
-  const lines = raw
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  const rawText = lines.join("\n");
+function parsePriceMessage(raw: string): TgPriceData | null {
+  const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (!hasPriceLine(raw)) return null;
 
   let usdBuy: string | null = null;
   let usdSell: string | null = null;
@@ -66,9 +57,7 @@ export function parseTelegramMessage(html: string): TgPriceData | null {
   let usdtIndex: string | null = null;
   let timestamp: string | null = null;
 
-  // Parse line by line - much more precise than greedy regex across whole text
   for (const line of lines) {
-    // USD lines: 🔴دلار فردایی تهران 193,500 خرید
     if (line.includes("دلار") && line.includes("تهران")) {
       if (line.includes("خرید") && !usdBuy) {
         const m = line.match(/([\d,]+)\s*خرید/);
@@ -84,7 +73,6 @@ export function parseTelegramMessage(html: string): TgPriceData | null {
       }
     }
 
-    // Tether/USDT line: 💰#تتر[USDT] 193,599خرید🔹
     if (line.includes("تتر") && line.includes("USDT")) {
       if (line.includes("خرید") && !tetherBuy) {
         const m = line.match(/([\d,]+)\s*خرید/);
@@ -96,52 +84,41 @@ export function parseTelegramMessage(html: string): TgPriceData | null {
       }
     }
 
-    // Gold Gram: ✨#طلا_گرمی 18,605,859
     if (line.includes("طلا_گرمی") && !goldGram) {
       const m = line.match(/([\d,]+)/);
       if (m) goldGram = cleanNumber(m[1]);
     }
 
-    // Gold Melted: #آبشده_نقدی 80,595,000 فروش
     if (line.includes("آبشده_نقدی") && !goldMelted) {
       const m = line.match(/([\d,]+)/);
       if (m) goldMelted = cleanNumber(m[1]);
     }
 
-    // Coin Fardi: سکه... فردایی ... 192,885,000 معامله
     if (line.includes("سکه") && line.includes("فردایی") && !coinFardi) {
       const m = line.match(/([\d,]+)\s*معامله/);
       if (m) coinFardi = cleanNumber(m[1]);
     }
 
-    // Coin Hawale: سکه... حواله ... 188,600,000 فروش
     if (line.includes("سکه") && line.includes("حواله") && !coinHawale) {
       const m = line.match(/([\d,]+)\s*فروش/);
       if (m) coinHawale = cleanNumber(m[1]);
     }
 
-    // USDT Index: 🔴4054.28 [1405-05-09 21:21:49]
     if (line.includes("🔴") && !usdtIndex) {
       const m = line.match(/🔴\s*([\d.]+)/);
       if (m) usdtIndex = m[1];
     }
 
-    // Timestamp: [1405-05-09 21:21:49]
     if (!timestamp) {
       const m = line.match(/\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\]/);
       if (m) timestamp = m[1];
     }
   }
 
-  // If the message format changed (channel redesign, ad inserted, etc.)
-  // our regexes will match nothing and we'd otherwise report a "successful"
-  // parse that's actually empty. Treat that as a failure so the caller
-  // falls through to the next data source instead of showing a card full
-  // of dashes.
   const hasUsdData = usdBuy != null || usdSell != null || usdDeal != null;
   const hasTetherData = tetherBuy != null || tetherSell != null;
   if (!hasUsdData && !hasTetherData) {
-    console.warn("[telegram] Parsed message but found no recognizable price fields — treating as failed parse");
+    // A real price block should always produce at least the dollar figure.
     return null;
   }
 
@@ -157,8 +134,25 @@ export function parseTelegramMessage(html: string): TgPriceData | null {
     goldMelted,
     usdtIndex,
     timestamp,
-    rawText,
+    rawText: lines.join("\n"),
   };
+}
+
+/**
+ * Scan ALL message-text blocks and parse the FIRST one that contains a real
+ * price update. Telegram often renders an ad post ahead of the actual update,
+ * and the reactions block is not always present, so anchoring on the first
+ * block or on `tgme_widget_message_reactions` is unreliable.
+ */
+export function parseTelegramMessage(html: string): TgPriceData | null {
+  const blocks = html.match(/<div class="tgme_widget_message_text[^>]*>([\s\S]*?)<\/div>/g);
+  if (!blocks || blocks.length === 0) return null;
+
+  for (const block of blocks) {
+    const parsed = parsePriceMessage(stripTags(block));
+    if (parsed) return parsed;
+  }
+  return null;
 }
 
 /**
