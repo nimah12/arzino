@@ -1,4 +1,4 @@
-import { getLiveHistory, liveChange, recordLivePrices } from "./live";
+import { recordLivePrices } from "./live";
 
 export type PriceItem = {
   id: string;
@@ -96,143 +96,59 @@ export function formatPrice(raw: string | number | null | undefined): string {
   return toFaDigits(n.toLocaleString("en-US"));
 }
 
-function formatChangeAbs(n: number | null): number | null {
-  if (n == null) return null;
-  return Number(n.toFixed(0));
-}
-
-function computeChangeFromHistory(history: PriceHistoryItem[]): { change: number | null; changeAbs: number | null } {
-  if (history.length < 2) return { change: null, changeAbs: null };
-  const first = history[0].price;
-  const last = history[history.length - 1].price;
-  if (!first || isNaN(first) || isNaN(last)) return { change: null, changeAbs: null };
-  const changeAbs = last - first;
-  const change = (changeAbs / first) * 100;
-  return { change: Number(change.toFixed(2)), changeAbs: formatChangeAbs(changeAbs) };
-}
-
-/** Enrich items with a real change % computed from the live buffer. */
-async function enrichChanges(items: PriceItem[]): Promise<void> {
-  const since24h = Date.now() - 24 * 3600_000;
-  items.forEach((item) => {
-    const series = getLiveHistory(item.id, since24h);
-    const fromLive = liveChange(series);
-    if (fromLive != null) {
-      item.change = fromLive;
-      const first = series[0].price;
-      item.changeAbs = Number((series[series.length - 1].price - first).toFixed(0));
-    }
-  });
-}
-
-// Server-side cache: Telegram is hit at most once per minute.
+/**
+ * Server-side cache: the BrsApi free tier is hit at most 3 times a day
+ * (once every 8 hours). Failures are also throttled to that cadence so a
+ * bad key can't hammer the upstream and get itself banned.
+ */
+const REFRESH_MS = 8 * 60 * 60 * 1000;
 let pricesCache: { data: PriceItem[]; at: number } | null = null;
+let lastAttemptAt = 0;
 
 export async function fetchPrices(): Promise<PriceItem[]> {
-  if (pricesCache && Date.now() - pricesCache.at < 60_000) return pricesCache.data;
+  const now = Date.now();
+  if (pricesCache && now - pricesCache.at < REFRESH_MS) return pricesCache.data;
+  if (now - lastAttemptAt < REFRESH_MS) return fallbackPrices;
 
+  lastAttemptAt = now;
   try {
-    const { fetchFromTelegram } = await import("./telegram");
-    const tgData = await fetchFromTelegram();
+    const { fetchBrsPrices, findBrsItem, parseBrsNumber, toToman } = await import("./brsapi");
+    const apiItems = await fetchBrsPrices();
 
-    if (tgData) {
-      const prices: PriceItem[] = [
-        {
-          id: "usd",
-          title: "دلار فردایی تهران",
-          icon: "💵",
-          price: formatPrice(tgData.usdDeal || tgData.usdBuy),
-          buyPrice: formatPrice(tgData.usdBuy),
-          sellPrice: formatPrice(tgData.usdSell),
-          change: null,
-          changeAbs: null,
-          updatedAt: tgData.timestamp ? tgData.timestamp.slice(11, 16) : "",
+    if (apiItems && apiItems.length > 0) {
+      const prices: PriceItem[] = [];
+      for (const id of ITEM_ORDER) {
+        const meta = ITEM_META[id];
+        if (!meta) continue;
+        const src = findBrsItem(apiItems, id);
+        if (!src) continue;
+        const price = toToman(src, parseBrsNumber(src.price));
+        if (price == null || price <= 0) continue;
+        prices.push({
+          id,
+          title: meta.title,
+          icon: meta.icon,
+          price: formatPrice(price),
+          change: parseBrsNumber(src.change_percent),
+          changeAbs: toToman(src, parseBrsNumber(src.change_value)),
+          updatedAt: src.time || "",
           history: [],
-          source: "telegram",
-        },
-        {
-          id: "tether",
-          title: "تتر (USDT)",
-          icon: "💎",
-          price: formatPrice(tgData.tetherSell || tgData.tetherBuy),
-          buyPrice: formatPrice(tgData.tetherBuy),
-          sellPrice: formatPrice(tgData.tetherSell),
-          change: null,
-          changeAbs: null,
-          updatedAt: tgData.timestamp ? tgData.timestamp.slice(11, 16) : "",
-          history: [],
-          source: "telegram",
-        },
-        {
-          id: "gold18",
-          title: "طلای ۱۸ عیار (آب‌شده)",
-          icon: "🥇",
-          price: formatPrice(tgData.goldMelted),
-          change: null,
-          changeAbs: null,
-          updatedAt: tgData.timestamp ? tgData.timestamp.slice(11, 16) : "",
-          history: [],
-          source: "telegram",
-        },
-        {
-          id: "gold-gr",
-          title: "طلا (گرمی)",
-          icon: "✨",
-          price: formatPrice(tgData.goldGram),
-          change: null,
-          changeAbs: null,
-          updatedAt: tgData.timestamp ? tgData.timestamp.slice(11, 16) : "",
-          history: [],
-          source: "telegram",
-        },
-        {
-          id: "coin",
-          title: "سکه امامی (حواله)",
-          icon: "🪙",
-          price: formatPrice(tgData.goldCoin),
-          change: null,
-          changeAbs: null,
-          updatedAt: tgData.timestamp ? tgData.timestamp.slice(11, 16) : "",
-          history: [],
-          source: "telegram",
-        },
-        {
-          id: "coin-fardi",
-          title: "سکه فردایی",
-          icon: "🏅",
-          price: formatPrice(tgData.goldCoinFardi),
-          change: null,
-          changeAbs: null,
-          updatedAt: tgData.timestamp ? tgData.timestamp.slice(11, 16) : "",
-          history: [],
-          source: "telegram",
-        },
-      ];
-      await enrichChanges(prices);
-      return finalize(prices);
+          source: "brsapi",
+        });
+      }
+      if (prices.length > 0) return finalize(prices);
     }
   } catch (e) {
-    console.warn("[prices] Telegram failed:", e);
+    console.warn("[prices] BrsApi failed:", e);
   }
 
-  console.warn("[prices] Telegram unavailable — using static fallback data");
+  console.warn("[prices] BrsApi unavailable — using static fallback data");
   return fallbackPrices;
 }
 
 function finalize(items: PriceItem[]): PriceItem[] {
   recordLivePrices(items);
   pricesCache = { data: items, at: Date.now() };
-  console.log(`[prices] source=telegram, items=${items.length}`);
+  console.log(`[prices] source=brsapi, items=${items.length}`);
   return items;
-}
-
-/**
- * History for an asset = points accumulated in the live buffer from the
- * app's own per-minute Telegram polling. Returns [] when there's genuinely
- * nothing — the charts are display-only, so this is currently unused but kept
- * for API compatibility.
- */
-export async function fetchPriceHistory(id: string, hours: number = 24): Promise<PriceHistoryItem[]> {
-  const since = Date.now() - hours * 3600_000;
-  return getLiveHistory(id, since);
 }

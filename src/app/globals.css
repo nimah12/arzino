@@ -73,8 +73,11 @@ html {
 body {
   background: var(--bg);
   color: var(--text-primary);
-  font-family: var(--font-vazirmatn), var(--font-geist-sans), system-ui, sans-serif;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  font-family:
+    var(--font-vazirmatn), var(--font-geist-sans), system-ui, sans-serif;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 * {
@@ -82,7 +85,8 @@ body {
 }
 
 .font-persian {
-  font-family: var(--font-vazirmatn), var(--font-geist-sans), system-ui, sans-serif;
+  font-family:
+    var(--font-vazirmatn), var(--font-geist-sans), system-ui, sans-serif;
 }
 
 .font-english {
@@ -108,38 +112,68 @@ body {
 
 /* Live indicator dot */
 @keyframes live-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 .live-dot {
   animation: live-pulse 2s ease-in-out infinite;
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .animate-fade-in {
   animation: fade-in 0.4s ease-out forwards;
 }
 
 @keyframes flash-up {
-  0% { background-color: var(--up-bg); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: var(--up-bg);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 @keyframes flash-down {
-  0% { background-color: var(--down-bg); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: var(--down-bg);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
-.flash-up { animation: flash-up 1.2s ease-out; }
-.flash-down { animation: flash-down 1.2s ease-out; }
+.flash-up {
+  animation: flash-up 1.2s ease-out;
+}
+.flash-down {
+  animation: flash-down 1.2s ease-out;
+}
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 .shimmer {
-  background: linear-gradient(90deg, var(--shimmer-1) 25%, var(--shimmer-2) 50%, var(--shimmer-1) 75%);
+  background: linear-gradient(
+    90deg,
+    var(--shimmer-1) 25%,
+    var(--shimmer-2) 50%,
+    var(--shimmer-1) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
@@ -166,7 +200,9 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -281,7 +317,9 @@ body {
   padding-inline-start: 1.75rem;
   width: 100%;
   max-width: 220px;
-  transition: border-color 0.15s ease, background-color 0.2s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.2s ease;
 }
 .search-input::placeholder {
   color: var(--text-tertiary);
@@ -305,7 +343,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  transition: border-color 0.15s ease, background-color 0.2s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.2s ease;
 }
 .overview-card:hover {
   border-color: var(--border-strong);
@@ -388,30 +428,49 @@ body {
 
 /* Display-only animated chart (SVG) */
 @keyframes chart-draw {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 .chart-line {
   stroke-dasharray: 1;
   animation: chart-draw 1.6s ease-out forwards;
 }
 @keyframes chart-area-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .chart-area {
   animation: chart-area-fade 1.2s ease-out forwards;
 }
 @keyframes chart-dot-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 .chart-end-dot {
   animation: chart-dot-pulse 2s ease-in-out infinite;
 }
 @keyframes chart-halo-pulse {
-  0% { transform: scale(1); opacity: 0.6; }
-  100% { transform: scale(2.4); opacity: 0; }
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
 }
 .chart-end-halo {
   transform-box: fill-box;
