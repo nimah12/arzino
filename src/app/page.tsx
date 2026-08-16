@@ -9,6 +9,7 @@ import {
   type PriceItem,
 } from "@/lib/prices";
 import { Moon, RefreshCw, Search, Sun, TrendingUp, TriangleAlert, X } from "lucide-react";
+import AssetIcon from "./components/AssetIcon";
 import PriceCard from "./components/PriceCard";
 import PriceChart from "./components/PriceChart";
 import { useTheme } from "@/lib/theme";
@@ -126,7 +127,7 @@ function OverviewCard({ item, locale }: { item: PriceItem; locale: Locale }) {
   return (
     <div className="overview-card">
       <span className="overview-label flex items-center gap-1.5">
-        <span aria-hidden="true">{item.icon}</span>
+        <AssetIcon name={item.id} size={15} />
         <span className="truncate">{title}</span>
       </span>
       <span className="overview-price font-mono-data tabular-nums" style={{ color: "var(--text-primary)" }}>
@@ -146,12 +147,14 @@ function ChartModal({
   id,
   basePrice,
   change,
+  history,
   locale,
   onClose,
 }: {
   id: string;
   basePrice?: string | null;
   change?: number | null;
+  history?: number[];
   locale: Locale;
   onClose: () => void;
 }) {
@@ -194,7 +197,7 @@ function ChartModal({
             <X size={14} />
           </button>
         </div>
-        <PriceChart id={id} locale={locale} height={260} basePrice={basePrice} change={change} />
+        <PriceChart id={id} locale={locale} height={260} basePrice={basePrice} change={change} history={history} />
         <p className="mt-3 text-xs flex items-center gap-1.5" style={{ color: "var(--text-tertiary)" }}>
           <span className="w-1.5 h-1.5 rounded-full live-dot" style={{ background: "var(--up)" }} />
           {t("updatesEveryMin")}
@@ -588,6 +591,7 @@ export default function Home() {
           id={selectedChart}
           basePrice={modalItem.price}
           change={modalItem.change}
+          history={modalItem.history}
           locale={locale}
           onClose={() => setSelectedChart(null)}
         />

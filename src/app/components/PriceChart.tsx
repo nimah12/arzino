@@ -11,6 +11,12 @@ interface PriceChartProps {
   basePrice?: string | null;
   /** Real 24h change (%) — the display curve is tilted to match its direction. */
   change?: number | null;
+  /**
+   * Real per-minute samples from the server's live buffer (oldest → newest,
+   * Toman). When present, the modal draws them and continues smoothly to the
+   * current price; when empty it falls back to the synthetic curve.
+   */
+  history?: number[];
   /** Changes every minute → the draw animation replays (live feel). */
   animKey?: number;
 }
@@ -91,6 +97,23 @@ function genSeries(id: string, base: number, change: number | null): number[] {
   return pts;
 }
 
+/**
+ * Real history + a short synthetic continuation: the line follows the actual
+ * per-minute samples and eases from the last sample toward the current price
+ * so the pulsing end dot always sits at "now".
+ */
+function blendSeries(id: string, real: number[], base: number): number[] {
+  const rand = mulberry32(hashSeed(id) ^ 0x51f15e);
+  const tail = 14;
+  const pts = real.slice();
+  let v = pts[pts.length - 1];
+  for (let i = 0; i < tail; i++) {
+    v += (base - v) * 0.4 + (rand() - 0.5) * base * 0.003;
+    pts.push(v);
+  }
+  return pts;
+}
+
 function smoothPath(pts: { x: number; y: number }[]): string {
   if (pts.length < 2) return "";
   let d = `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
@@ -121,16 +144,25 @@ export default function PriceChart({
   height = 32,
   basePrice = null,
   change = null,
+  history,
   animKey = 0,
 }: PriceChartProps) {
   const gradId = useId().replace(/[^a-zA-Z0-9]/g, "") + "-g";
 
   const series = useMemo(() => {
     const base = basePrice ? toNumLocalized(basePrice) : null;
-    return genSeries(id, base ?? 100, change ?? null);
-  }, [id, basePrice, change]);
+    const b = base ?? 100;
+    if (history && history.length >= 2) {
+      const real = history.filter((n) => Number.isFinite(n) && n > 0);
+      if (real.length >= 2) return blendSeries(id, real, b);
+    }
+    return genSeries(id, b, change ?? null);
+  }, [id, basePrice, change, history]);
 
-  const isUp = series[series.length - 1] >= series[0];
+  // Prefer the real 24h change for the color so the chart always agrees with
+  // the change badge; otherwise fall back to the drawn series direction.
+  const isUp =
+    change != null && isFinite(change) ? change >= 0 : series[series.length - 1] >= series[0];
   const colorVar = isUp ? "var(--up)" : "var(--down)";
 
   const min = Math.min(...series);

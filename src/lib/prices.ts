@@ -1,7 +1,6 @@
 export type PriceItem = {
   id: string;
   title: string;
-  icon: string;
   price: string;
   change: number | null;
   changeAbs: number | null;
@@ -17,19 +16,19 @@ export type PriceHistoryItem = {
   price: number;
 };
 
-/** Canonical order + titles/icons for the watchlist. */
-export const ITEM_META: Record<string, { title: string; icon: string }> = {
-  usd: { title: "دلار آمریکا", icon: "💵" },
-  eur: { title: "یورو", icon: "💶" },
-  gbp: { title: "پوند انگلیس", icon: "💷" },
-  aed: { title: "درهم امارات", icon: "🇦🇪" },
-  try: { title: "لیر ترکیه", icon: "🇹🇷" },
-  gold18: { title: "طلای ۱۸ عیار", icon: "🥇" },
-  "gold-gr": { title: "طلای آب‌شده (مثقال)", icon: "✨" },
-  coin: { title: "سکه امامی", icon: "🪙" },
-  "half-coin": { title: "نیم سکه", icon: "🪙" },
-  tether: { title: "تتر (USDT)", icon: "💎" },
-  "coin-fardi": { title: "سکه فردایی", icon: "🏅" },
+/** Canonical order + titles for the watchlist (icons resolve via AssetIcon). */
+export const ITEM_META: Record<string, { title: string }> = {
+  usd: { title: "دلار آمریکا" },
+  eur: { title: "یورو" },
+  gbp: { title: "پوند انگلیس" },
+  aed: { title: "درهم امارات" },
+  try: { title: "لیر ترکیه" },
+  gold18: { title: "طلای ۱۸ عیار" },
+  "gold-gr": { title: "طلای آب‌شده (مثقال)" },
+  coin: { title: "سکه امامی" },
+  "half-coin": { title: "نیم سکه" },
+  tether: { title: "تتر (USDT)" },
+  "coin-fardi": { title: "سکه فردایی" },
 };
 
 export const ITEM_ORDER = [

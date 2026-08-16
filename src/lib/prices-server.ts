@@ -9,7 +9,7 @@
  */
 import { promises as fs } from "fs";
 import path from "path";
-import { recordLivePrices } from "./live";
+import { getLiveHistory, recordLivePrices } from "./live";
 import type { NavasanError } from "./navasan";
 import {
   formatPrice,
@@ -19,18 +19,30 @@ import {
 } from "./prices";
 
 const fallbackPrices: PriceItem[] = [
-  { id: "usd", title: "دلار آمریکا", icon: "💵", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
-  { id: "eur", title: "یورو", icon: "💶", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
-  { id: "gbp", title: "پوند انگلیس", icon: "💷", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
-  { id: "aed", title: "درهم امارات", icon: "🇦🇪", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
-  { id: "try", title: "لیر ترکیه", icon: "🇹🇷", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
-  { id: "gold18", title: "طلای ۱۸ عیار", icon: "🥇", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
-  { id: "coin", title: "سکه امامی", icon: "🪙", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
-  { id: "half-coin", title: "نیم سکه", icon: "🪙", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
-  { id: "tether", title: "تتر (USDT)", icon: "💎", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
-  { id: "gold-gr", title: "طلای آب‌شده (مثقال)", icon: "✨", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
-  { id: "coin-fardi", title: "سکه فردایی", icon: "🏅", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "usd", title: "دلار آمریکا", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "eur", title: "یورو", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "gbp", title: "پوند انگلیس", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "aed", title: "درهم امارات", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "try", title: "لیر ترکیه", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "gold18", title: "طلای ۱۸ عیار", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "coin", title: "سکه امامی", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "half-coin", title: "نیم سکه", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "tether", title: "تتر (USDT)", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "gold-gr", title: "طلای آب‌شده (مثقال)", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
+  { id: "coin-fardi", title: "سکه فردایی", price: "0", change: null, changeAbs: null, updatedAt: "", history: [], source: "fallback" },
 ];
+
+/**
+ * Attach each asset's real per-minute samples (from the in-memory live
+ * buffer) to the response, oldest → newest. The buffer fills once per
+ * minute per asset because every /api/prices poll records a heartbeat.
+ */
+function withLiveHistory(items: PriceItem[]): PriceItem[] {
+  return items.map((item) => ({
+    ...item,
+    history: getLiveHistory(item.id).map((p) => p.price),
+  }));
+}
 
 /**
  * Server-side cache: the Navasan free tier is hit at most 3 times a day
@@ -120,7 +132,12 @@ async function persistState(): Promise<void> {
 export async function fetchPrices(): Promise<PriceItem[]> {
   await loadState();
   const now = Date.now();
-  if (pricesCache && now - pricesCache.at < REFRESH_MS) return pricesCache.data;
+  if (pricesCache && now - pricesCache.at < REFRESH_MS) {
+    // Record a per-minute heartbeat so the live history keeps growing even
+    // while the 8h upstream window is still valid (prices here are flat).
+    recordLivePrices(pricesCache.data);
+    return withLiveHistory(pricesCache.data);
+  }
   if (now - lastAttemptAt < REFRESH_MS) return fallbackPrices;
 
   lastAttemptAt = now;
@@ -162,7 +179,6 @@ export async function fetchPrices(): Promise<PriceItem[]> {
         prices.push({
           id,
           title: meta.title,
-          icon: meta.icon,
           price: formatPrice(price),
           change: changePercent,
           changeAbs: rawChange != null ? Math.round(rawChange * scale) : null,
@@ -173,7 +189,7 @@ export async function fetchPrices(): Promise<PriceItem[]> {
           source: "navasan",
         });
       }
-      if (prices.length > 0) return finalize(prices, navasanLatestDate(result.items));
+      if (prices.length > 0) return withLiveHistory(await finalize(prices, navasanLatestDate(result.items)));
     }
 
     // No usable data — record why, clear any stale snapshot time, fall back.

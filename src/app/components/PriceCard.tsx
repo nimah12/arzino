@@ -1,6 +1,7 @@
 "use client";
 
 import { ASSET_TITLES, PriceItem, formatChange, toEnDigits } from "@/lib/prices";
+import AssetIcon from "./AssetIcon";
 import PriceChart from "./PriceChart";
 
 interface PriceCardProps {
@@ -36,7 +37,7 @@ export default function PriceCard({ item, locale, flashDir, flashTick, animKey, 
     <tr>
       <td>
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-lg shrink-0" aria-hidden="true">{item.icon}</span>
+          <AssetIcon name={item.id} size={17} className="shrink-0" />
           <span className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
             {title}
           </span>
