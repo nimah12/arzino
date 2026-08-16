@@ -8,6 +8,7 @@ import {
   toFaDigits,
   type PriceItem,
 } from "@/lib/prices";
+import { Moon, RefreshCw, Search, Sun, TrendingUp, TriangleAlert, X } from "lucide-react";
 import PriceCard from "./components/PriceCard";
 import PriceChart from "./components/PriceChart";
 import { useTheme } from "@/lib/theme";
@@ -144,11 +145,13 @@ function OverviewCard({ item, locale }: { item: PriceItem; locale: Locale }) {
 function ChartModal({
   id,
   basePrice,
+  change,
   locale,
   onClose,
 }: {
   id: string;
   basePrice?: string | null;
+  change?: number | null;
   locale: Locale;
   onClose: () => void;
 }) {
@@ -188,13 +191,10 @@ function ChartModal({
             aria-label={t("close")}
             title={t("close")}
           >
-            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <X size={14} />
           </button>
         </div>
-        <PriceChart id={id} locale={locale} height={260} basePrice={basePrice} />
+        <PriceChart id={id} locale={locale} height={260} basePrice={basePrice} change={change} />
         <p className="mt-3 text-xs flex items-center gap-1.5" style={{ color: "var(--text-tertiary)" }}>
           <span className="w-1.5 h-1.5 rounded-full live-dot" style={{ background: "var(--up)" }} />
           {t("updatesEveryMin")}
@@ -371,10 +371,7 @@ export default function Home() {
               className="w-8 h-8 rounded flex items-center justify-center shrink-0"
               style={{ background: "var(--bg-panel)", border: "1px solid var(--border-strong)" }}
             >
-              <svg width="16" height="16" fill="none" stroke="var(--accent)" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="m19 9-5 5-4-4-3 3" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <TrendingUp size={16} strokeWidth={2} style={{ color: "var(--accent)" }} />
             </div>
             <div>
               <h1 className="text-base font-bold leading-none" style={{ color: "var(--text-primary)" }}>
@@ -398,23 +395,7 @@ export default function Home() {
               aria-label={theme === "dark" ? t("themeToLight") : t("themeToDark")}
               title={theme === "dark" ? t("themeToLight") : t("themeToDark")}
             >
-              {theme === "dark" ? (
-                <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="5" />
-                  <line x1="12" y1="1" x2="12" y2="3" />
-                  <line x1="12" y1="21" x2="12" y2="23" />
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                  <line x1="1" y1="12" x2="3" y2="12" />
-                  <line x1="21" y1="12" x2="23" y2="12" />
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                </svg>
-              ) : (
-                <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
-              )}
+              {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
             </button>
             <div className="seg-control" role="group" aria-label={locale === "fa" ? "انتخاب زبان" : "Language"}>
               <button
@@ -468,19 +449,7 @@ export default function Home() {
               className="btn-ghost text-xs flex items-center gap-1.5"
               title={t("refreshUseless")}
             >
-              <svg
-                width="13"
-                height="13"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className={loading ? "animate-spin" : ""}
-                viewBox="0 0 24 24"
-              >
-                <path d="M23 4v6h-6" />
-                <path d="M1 20v-6h6" />
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-              </svg>
+              <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
               {loading ? t("refreshing") : t("refresh")}
             </button>
           </div>
@@ -493,11 +462,7 @@ export default function Home() {
             style={{ background: "var(--down-bg)", border: "1px solid rgba(229,72,77,0.3)", color: "var(--down)" }}
           >
             <span className="flex items-center gap-2">
-              <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
+              <TriangleAlert size={15} />
               {error}
             </span>
             <button onClick={loadPrices} className="btn-ghost text-xs">
@@ -512,11 +477,7 @@ export default function Home() {
             className="mb-4 p-3 rounded text-sm flex items-center gap-2"
             style={{ background: "var(--down-bg)", border: "1px solid rgba(229,72,77,0.3)", color: "var(--down)" }}
           >
-            <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" className="shrink-0">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
+            <TriangleAlert size={15} className="shrink-0" />
             {sourceErrorMessage}
           </div>
         )}
@@ -546,10 +507,7 @@ export default function Home() {
             </span>
           </h2>
           <div className="search-wrap">
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
+            <Search size={13} />
             <input
               className="search-input"
               type="search"
@@ -629,6 +587,7 @@ export default function Home() {
         <ChartModal
           id={selectedChart}
           basePrice={modalItem.price}
+          change={modalItem.change}
           locale={locale}
           onClose={() => setSelectedChart(null)}
         />

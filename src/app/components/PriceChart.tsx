@@ -9,6 +9,8 @@ interface PriceChartProps {
   height?: number;
   /** Current real price (formatted) — used only to scale the display curve. */
   basePrice?: string | null;
+  /** Real 24h change (%) — the display curve is tilted to match its direction. */
+  change?: number | null;
   /** Changes every minute → the draw animation replays (live feel). */
   animKey?: number;
 }
@@ -44,18 +46,48 @@ function mulberry32(seed: number) {
   };
 }
 
-/** Deterministic smooth display series around the asset's current price. */
-function genSeries(id: string, base: number): number[] {
+/**
+ * Deterministic smooth display series around the asset's current price.
+ *
+ * The curve is a mean-reverting walk pulled toward two slow sine harmonics
+ * (phase/frequency seeded per asset). This keeps every chart bounded within a
+ * believable few percent of the price — the previous single-trend random walk
+ * collapsed some assets (e.g. طلای ۱۸ عیار) onto the 90% floor or drifted
+ * tens of percent, which looked broken.
+ *
+ * When a real 24h change is available the curve is linearly tilted so its
+ * overall direction matches the change badge (▲ up / ▼ down).
+ */
+function genSeries(id: string, base: number, change: number | null): number[] {
   const rand = mulberry32(hashSeed(id) ^ 0x9e3779b9);
-  const trend = rand() - 0.5;
   const n = 48;
-  const amp = base * 0.012;
+
+  const f1 = 1.2 + rand() * 1.6; // slow harmonic — cycles across the window
+  const f2 = 3.0 + rand() * 2.5; // faster harmonic — adds texture
+  const p1 = rand() * Math.PI * 2;
+  const p2 = rand() * Math.PI * 2;
+  const a1 = base * (0.005 + rand() * 0.005); // 0.5–1.0% amplitude
+  const a2 = base * (0.002 + rand() * 0.003); // 0.2–0.5% amplitude
+  const jitter = base * 0.0025; // per-step noise
+
+  let v = base * (1 + (rand() - 0.5) * 0.008);
   const pts: number[] = [];
-  let v = base * (0.996 + rand() * 0.008);
   for (let i = 0; i < n; i++) {
-    v += (trend * base) / n + (rand() - 0.5) * amp;
-    pts.push(Math.max(base * 0.9, v));
+    const t = i / (n - 1);
+    const target =
+      base +
+      a1 * Math.sin(t * f1 * Math.PI * 2 + p1) +
+      a2 * Math.sin(t * f2 * Math.PI * 2 + p2);
+    v += (target - v) * 0.22 + (rand() - 0.5) * jitter;
+    pts.push(v);
   }
+
+  if (change != null && isFinite(change)) {
+    const tilt = Math.max(-0.02, Math.min(0.02, change / 100)); // ±2%
+    const delta = tilt * base - (pts[n - 1] - pts[0]);
+    for (let i = 1; i < n; i++) pts[i] += (delta * i) / (n - 1);
+  }
+
   return pts;
 }
 
@@ -88,14 +120,15 @@ export default function PriceChart({
   locale = "fa",
   height = 32,
   basePrice = null,
+  change = null,
   animKey = 0,
 }: PriceChartProps) {
   const gradId = useId().replace(/[^a-zA-Z0-9]/g, "") + "-g";
 
   const series = useMemo(() => {
     const base = basePrice ? toNumLocalized(basePrice) : null;
-    return genSeries(id, base ?? 100);
-  }, [id, basePrice]);
+    return genSeries(id, base ?? 100, change ?? null);
+  }, [id, basePrice, change]);
 
   const isUp = series[series.length - 1] >= series[0];
   const colorVar = isUp ? "var(--up)" : "var(--down)";

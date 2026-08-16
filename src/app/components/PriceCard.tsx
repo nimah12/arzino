@@ -100,7 +100,7 @@ export default function PriceCard({ item, locale, flashDir, flashTick, animKey, 
           title={locale === "fa" ? "نمایش نمودار بزرگ" : "Open large chart"}
           aria-label={locale === "fa" ? `نمایش نمودار ${title}` : `Show ${title} chart`}
         >
-          <PriceChart id={item.id} locale={locale} basePrice={item.price} animKey={animKey} />
+          <PriceChart id={item.id} locale={locale} basePrice={item.price} change={item.change} animKey={animKey} />
         </button>
       </td>
 

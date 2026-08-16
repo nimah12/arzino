@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Vazirmatn } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,9 +13,38 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const vazirmatn = Vazirmatn({
+// Vazirmatn (وزیر متن) is self-hosted from the npm package instead of Google
+// Fonts, so Persian text loads fast and works where Google is slow/blocked.
+const vazirmatn = localFont({
   variable: "--font-vazirmatn",
-  subsets: ["arabic"],
+  display: "swap",
+  src: [
+    {
+      path: "../../node_modules/vazirmatn/fonts/webfonts/Vazirmatn-Regular.woff2",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../node_modules/vazirmatn/fonts/webfonts/Vazirmatn-Medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../../node_modules/vazirmatn/fonts/webfonts/Vazirmatn-SemiBold.woff2",
+      weight: "600",
+      style: "normal",
+    },
+    {
+      path: "../../node_modules/vazirmatn/fonts/webfonts/Vazirmatn-Bold.woff2",
+      weight: "700",
+      style: "normal",
+    },
+    {
+      path: "../../node_modules/vazirmatn/fonts/webfonts/Vazirmatn-ExtraBold.woff2",
+      weight: "800",
+      style: "normal",
+    },
+  ],
 });
 
 export const metadata: Metadata = {
