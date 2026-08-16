@@ -5,6 +5,7 @@ import {
   ASSET_TITLES,
   formatChange,
   toEnDigits,
+  toFaDigits,
   type PriceItem,
 } from "@/lib/prices";
 import PriceCard from "./components/PriceCard";
@@ -29,7 +30,11 @@ const translations: Record<Locale, Record<string, string>> = {
     lastUpdate: "آخرین به‌روزرسانی",
     retry: "تلاش مجدد",
     errorFetch: "خطا در دریافت قیمت‌ها. دوباره تلاش کنید.",
+    apiKeyInvalid: "کلید API نامعتبر است — لطفاً کلید را بررسی یا به‌روزرسانی کنید. (تلاش مجدد هر ۸ ساعت)",
+    dataUnavailable: "دریافت قیمت‌های زنده ناموفق بود؛ قیمت‌ها موقتاً در دسترس نیستند. (تلاش مجدد هر ۸ ساعت)",
     noData: "هیچ داده‌ای برای نمایش وجود ندارد.",
+    nextUpdate: "بروزرسانی بعدی:",
+    refreshUseless: "قیمت‌ها هر ۸ ساعت به‌روز می‌شوند؛ رفرش زودتر از موعد، دادهٔ جدیدی نمی‌آورد.",
     noResults: "دارایی‌ای با این نام پیدا نشد.",
     dataSource: "منبع داده:",
     langFA: "فارسی",
@@ -62,7 +67,11 @@ const translations: Record<Locale, Record<string, string>> = {
     lastUpdate: "Last update",
     retry: "Retry",
     errorFetch: "Failed to fetch prices. Please try again.",
+    apiKeyInvalid: "Invalid API key — please check or update the key. (Retries every 8 hours)",
+    dataUnavailable: "Couldn't fetch live prices; they're temporarily unavailable. (Retries every 8 hours)",
     noData: "No data available.",
+    nextUpdate: "Next update:",
+    refreshUseless: "Prices update every 8 hours; refreshing early won't bring new data.",
     noResults: "No assets match your search.",
     dataSource: "Source:",
     langFA: "فارسی",
@@ -93,6 +102,16 @@ const OVERVIEW_IDS = ["usd", "tether", "gold18", "coin"];
 function toNum(s: string): number | null {
   const n = parseFloat(String(s).replace(/[^\d.-]/g, ""));
   return isNaN(n) ? null : n;
+}
+
+function formatCountdown(ms: number, locale: Locale): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const text = `${pad(h)}:${pad(m)}:${pad(s)}`;
+  return locale === "fa" ? toFaDigits(text) : text;
 }
 
 function OverviewCard({ item, locale }: { item: PriceItem; locale: Locale }) {
@@ -189,7 +208,12 @@ export default function Home() {
   const [prices, setPrices] = useState<PriceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
+  const [dataTime, setDataTime] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sourceError, setSourceError] = useState<string | null>(null);
+  const [nextRefresh, setNextRefresh] = useState<number | null>(null);
+  const [refreshHint, setRefreshHint] = useState<string | null>(null);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [locale, setLocale] = useState<Locale>(() => {
     if (typeof window === "undefined") return "fa";
     const stored = localStorage.getItem("arzino-locale");
@@ -205,6 +229,48 @@ export default function Home() {
   const { theme, toggleTheme } = useTheme();
 
   const t = (key: string) => translations[locale][key] || key;
+
+  useEffect(() => () => {
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+  }, []);
+
+  // Clear, localized explanation shown instead of silent "—" rows.
+  const sourceErrorMessage =
+    sourceError != null
+      ? sourceError === "invalid-key"
+        ? t("apiKeyInvalid")
+        : t("dataUnavailable")
+      : null;
+
+  // Countdown to the next 8h data refresh (updates with the minute tick).
+  const remaining = nextRefresh != null ? nextRefresh - now.getTime() : null;
+  const countdownLabel = remaining != null && remaining > 0 ? formatCountdown(remaining, locale) : null;
+
+  // Refreshing sooner than the 8h window is pointless — say so instead of fetching.
+  const handleRefresh = () => {
+    if (nextRefresh != null && nextRefresh > now.getTime()) {
+      const cd = formatCountdown(nextRefresh - now.getTime(), locale);
+      setRefreshHint(`${t("refreshUseless")} (${t("nextUpdate")} ${cd})`);
+      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+      hintTimerRef.current = setTimeout(() => setRefreshHint(null), 6000);
+      return;
+    }
+    loadPrices();
+  };
+
+  // Prefer the API's own last-update time; fall back to the client fetch time.
+  const lastUpdateLabel =
+    dataTime != null
+      ? locale === "fa"
+        ? toFaDigits(dataTime)
+        : toEnDigits(dataTime)
+      : lastFetch
+        ? lastFetch.toLocaleTimeString(locale === "fa" ? "fa-IR" : "en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })
+        : "—";
 
   useEffect(() => {
     document.documentElement.dir = locale === "fa" ? "rtl" : "ltr";
@@ -239,6 +305,12 @@ export default function Home() {
         setFlashes(nextFlashes);
         setPrices(next);
         setLastFetch(new Date());
+        // Exact last-update time from the Navasan response (e.g. "1405-05-25 19:00:39").
+        setDataTime(typeof json.dataTime === "string" ? json.dataTime : null);
+        // Why live data is unavailable ("invalid-key" | "http" | "network" | "empty"), if any.
+        setSourceError(typeof json.error === "string" ? json.error : null);
+        // When the 8h window expires / the next upstream fetch happens.
+        setNextRefresh(typeof json.nextRefresh === "number" ? json.nextRefresh : null);
       } else {
         throw new Error("Invalid data format");
       }
@@ -375,19 +447,27 @@ export default function Home() {
             <span className="font-english">{locale === "fa" ? gregorianNowLong : jalaliNowLong}</span>
           </div>
           <div className="flex items-center gap-3">
-            {lastFetch && (
+            {(lastFetch || dataTime) && (
               <span>
                 {t("lastUpdate")}:{" "}
                 <span className="font-mono-data tabular-nums" style={{ color: "var(--text-secondary)" }}>
-                  {lastFetch.toLocaleTimeString(locale === "fa" ? "fa-IR" : "en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                  })}
+                  {lastUpdateLabel}
                 </span>
               </span>
             )}
-            <button onClick={loadPrices} disabled={loading} className="btn-ghost text-xs flex items-center gap-1.5">
+            {refreshHint ? (
+              <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>{refreshHint}</span>
+            ) : countdownLabel ? (
+              <span className="font-mono-data tabular-nums text-xs" style={{ color: "var(--text-tertiary)" }}>
+                {t("nextUpdate")} {countdownLabel}
+              </span>
+            ) : null}
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="btn-ghost text-xs flex items-center gap-1.5"
+              title={t("refreshUseless")}
+            >
               <svg
                 width="13"
                 height="13"
@@ -423,6 +503,21 @@ export default function Home() {
             <button onClick={loadPrices} className="btn-ghost text-xs">
               {t("retry")}
             </button>
+          </div>
+        )}
+
+        {/* Live-source warning: invalid key or upstream failure (instead of silent dashes) */}
+        {sourceErrorMessage && (
+          <div
+            className="mb-4 p-3 rounded text-sm flex items-center gap-2"
+            style={{ background: "var(--down-bg)", border: "1px solid rgba(229,72,77,0.3)", color: "var(--down)" }}
+          >
+            <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24" className="shrink-0">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            {sourceErrorMessage}
           </div>
         )}
 
@@ -520,7 +615,7 @@ export default function Home() {
           <p className="flex items-center gap-1.5">
             {t("unitNote")} · {t("lastUpdate")}:{" "}
             <span className="font-mono-data tabular-nums" style={{ color: "var(--text-secondary)" }}>
-              {lastFetch ? lastFetch.toLocaleTimeString(locale === "fa" ? "fa-IR" : "en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"}
+              {lastUpdateLabel}
             </span>
           </p>
           <a href="https://github.com/nimah12/arzino" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: "var(--text-tertiary)" }}>

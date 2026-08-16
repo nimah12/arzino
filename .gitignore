@@ -20,6 +20,9 @@
 # production
 /build
 
+# runtime cache (persisted price cache)
+/var/
+
 # misc
 .DS_Store
 *.pem
