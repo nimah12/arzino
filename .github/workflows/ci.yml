@@ -28,8 +28,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test
-        run: npm test
+      - name: Test (with coverage threshold)
+        run: npm run test:coverage
 
       - name: Build
         run: npm run build
@@ -54,5 +54,10 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      - name: Run E2E tests
+      # Playwright's webServer starts `npm run start` in CI — the production
+      # bundle must exist before the tests run, so build it here.
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Run E2E tests against production build
         run: npm run test:e2e

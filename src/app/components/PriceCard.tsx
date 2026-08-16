@@ -3,10 +3,13 @@
 import { ASSET_TITLES, PriceItem, formatChange, toEnDigits } from "@/lib/prices";
 import AssetIcon from "./AssetIcon";
 import PriceChart from "./PriceChart";
+import Tooltip from "./Tooltip";
 
 interface PriceCardProps {
   item: PriceItem;
   locale: "fa" | "en";
+  /** Neutral (uniform) icon mode — follows the page-wide palette toggle. */
+  uniform?: boolean;
   flashDir?: "up" | "down";
   flashTick?: number;
   animKey?: number;
@@ -20,7 +23,7 @@ interface PriceCardProps {
  * moves between refreshes, and clicking the sparkline opens the large
  * animated chart.
  */
-export default function PriceCard({ item, locale, flashDir, flashTick, animKey, onOpenChart }: PriceCardProps) {
+export default function PriceCard({ item, locale, uniform = false, flashDir, flashTick, animKey, onOpenChart }: PriceCardProps) {
   const isUp = item.change != null && item.change > 0;
   const isDown = item.change != null && item.change < 0;
   const en = locale === "en";
@@ -37,7 +40,7 @@ export default function PriceCard({ item, locale, flashDir, flashTick, animKey, 
     <tr>
       <td>
         <div className="flex items-center gap-2.5 min-w-0">
-          <AssetIcon name={item.id} size={17} className="shrink-0" title={title} />
+          <AssetIcon name={item.id} size={17} className="shrink-0" title={title} uniform={uniform} />
           <span className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
             {title}
           </span>
@@ -94,15 +97,16 @@ export default function PriceCard({ item, locale, flashDir, flashTick, animKey, 
       </td>
 
       <td className="hidden md:table-cell" style={{ width: 96 }}>
-        <button
-          type="button"
-          className="chart-cell-btn"
-          onClick={() => onOpenChart?.(item.id)}
-          title={locale === "fa" ? "نمایش نمودار بزرگ" : "Open large chart"}
-          aria-label={locale === "fa" ? `نمایش نمودار ${title}` : `Show ${title} chart`}
-        >
-          <PriceChart id={item.id} locale={locale} basePrice={item.price} change={item.change} history={item.history} animKey={animKey} />
-        </button>
+        <Tooltip label={locale === "fa" ? "نمایش نمودار بزرگ" : "Open large chart"} className="tt-block">
+          <button
+            type="button"
+            className="chart-cell-btn"
+            onClick={() => onOpenChart?.(item.id)}
+            aria-label={locale === "fa" ? `نمایش نمودار ${title}` : `Show ${title} chart`}
+          >
+            <PriceChart id={item.id} locale={locale} basePrice={item.price} change={item.change} history={item.history} animKey={animKey} />
+          </button>
+        </Tooltip>
       </td>
 
       <td className="hidden lg:table-cell">

@@ -12,6 +12,7 @@ import {
   TurkishLira,
   type LucideIcon,
 } from "lucide-react";
+import Tooltip from "./Tooltip";
 
 /** Lucide icon per asset id — replaces the old emoji row icons. */
 const ASSET_ICONS: Record<string, LucideIcon> = {
@@ -75,7 +76,7 @@ export default function AssetIcon({
   className = "",
   color,
   uniform = false,
-  strokeWidth = 1.75,
+  strokeWidth,
   title,
 }: {
   name: string;
@@ -85,30 +86,40 @@ export default function AssetIcon({
   color?: string;
   /** Force the uniform muted color, ignoring the per-asset color map. */
   uniform?: boolean;
-  /** Stroke width of the icon lines. */
+  /**
+   * Stroke width of the icon lines. Defaults to the theme token
+   * `--icon-stroke` (defined identically in both themes) so the icon weight
+   * stays consistent; pass a number to override.
+   */
   strokeWidth?: number;
-  /** Optional native tooltip text (localized by the caller). */
+  /** Optional tooltip text (localized by the caller) — custom themed tooltip. */
   title?: string;
 }) {
   const Icon = ASSET_ICONS[name] ?? Coins;
   const resolved = assetColor(name, { color, uniform });
-  const icon = (
+  const svg = (
     <Icon
       size={size}
       strokeWidth={strokeWidth}
-      style={{ color: resolved }}
+      className={title ? undefined : className}
+      style={{
+        color: resolved,
+        // When no explicit strokeWidth is given, the theme token drives the
+        // stroke weight (inline style beats the SVG presentation attribute).
+        strokeWidth: strokeWidth != null ? undefined : "var(--icon-stroke)",
+      }}
       aria-hidden="true"
     />
   );
   if (!title) {
-    // No tooltip — the className stays on the svg (it is the flex child).
-    return <Icon size={size} strokeWidth={strokeWidth} className={className} style={{ color: resolved }} aria-hidden="true" />;
+    // No tooltip — the svg keeps the className (it is the flex child).
+    return svg;
   }
-  // With a tooltip the wrapper span becomes the flex child, so it carries
+  // With a tooltip the Tooltip wrapper becomes the flex child, so it carries
   // the className; the svg stays decorative.
   return (
-    <span title={title} className={className} style={{ display: "inline-flex" }}>
-      {icon}
-    </span>
+    <Tooltip label={title} className={className}>
+      {svg}
+    </Tooltip>
   );
 }

@@ -1,9 +1,11 @@
 /**
- * Visual test for the large chart modal:
+ * Visual test for the watchlist and the large chart modal:
  *  - the chart line color matches the 24h change badge (▲ green / ▼ red),
- *  - asset icon colors follow the theme (gold instruments → --gold,
- *    currencies → --accent),
- *  - verified in BOTH light and dark themes, with a screenshot per theme.
+ *  - asset icon and overview-card label colors follow the theme
+ *    (gold instruments → --gold, currencies → --accent),
+ *  - verified in BOTH themes (dark/light) × BOTH locales (fa/en),
+ *  - a full-page screenshot of the watchlist (header, overview cards, table)
+ *    and a modal screenshot are captured for every combination.
  *
  * /api/prices is intercepted with fixed data so the test never depends on
  * the live Navasan API or the API key.
@@ -24,6 +26,12 @@ const THEME_COLORS = {
     gold: [184, 134, 11], // --gold  #b8860b
     accent: [47, 111, 228], // --accent #2f6fe4
   },
+} as const;
+
+/** Localized asset titles used to locate rows/cards per locale. */
+const TITLES = {
+  fa: { usd: "دلار آمریکا", gold: "طلای ۱۸ عیار", tether: "تتر (USDT)" },
+  en: { usd: "US Dollar", gold: "Gold 18k", tether: "Tether (USDT)" },
 } as const;
 
 /** Fixed snapshot served instead of the real API. */
@@ -82,60 +90,79 @@ async function colorOf(locator: Locator, prop: "color" | "stroke"): Promise<[num
   return parseRgb(String(value));
 }
 
-test("modal line color matches the change badge and icon colors follow the theme", async ({ browser }) => {
+test("chart line matches the change badge and colors follow the theme (both locales)", async ({ browser }) => {
   for (const theme of ["dark", "light"] as const) {
-    await test.step(`theme: ${theme}`, async () => {
-      const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-      const page = await context.newPage();
+    for (const locale of ["fa", "en"] as const) {
+      await test.step(`theme=${theme} locale=${locale}`, async () => {
+        const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+        const page = await context.newPage();
 
-      await page.route("**/api/prices", (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            success: true,
-            data: makeItems(),
-            dataTime: "1405-05-25 20:00:00",
-            error: null,
-            nextRefresh: Date.now() + 8 * 3_600_000,
-            timestamp: new Date().toISOString(),
-          }),
-        })
-      );
+        await page.route("**/api/prices", (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              success: true,
+              data: makeItems(),
+              dataTime: "1405-05-25 20:00:00",
+              error: null,
+              nextRefresh: Date.now() + 8 * 3_600_000,
+              timestamp: new Date().toISOString(),
+            }),
+          })
+        );
 
-      await page.addInitScript((t) => {
-        localStorage.setItem("arzino-theme", t);
-        localStorage.setItem("arzino-locale", "fa");
-      }, theme);
+        await page.addInitScript(
+          ({ t, l }) => {
+            localStorage.setItem("arzino-theme", t);
+            localStorage.setItem("arzino-locale", l);
+          },
+          { t: theme, l: locale }
+        );
 
-      await page.goto("/");
-      await expect(page.locator("tbody tr")).toHaveCount(3);
-      // the theme actually applied
-      if (theme === "dark") await expect(page.locator("html")).toHaveClass(/dark/);
+        await page.goto("/");
+        await expect(page.locator("tbody tr")).toHaveCount(3);
+        // the theme actually applied
+        if (theme === "dark") await expect(page.locator("html")).toHaveClass(/dark/);
 
-      const c = THEME_COLORS[theme];
+        const c = THEME_COLORS[theme];
+        const titles = TITLES[locale];
 
-      // USD — positive change: green line must equal the green badge; accent icon
-      const usdRow = page.locator("tbody tr", { hasText: "دلار آمریکا" });
-      await expect(await colorOf(usdRow.locator(".chart-line"), "stroke")).toEqual(c.up);
-      await expect(await colorOf(usdRow.locator("span", { hasText: "٪" }).first(), "color")).toEqual(c.up);
-      await expect(await colorOf(usdRow.locator("svg.lucide").first(), "color")).toEqual(c.accent);
+        // USD — positive change: green line must equal the green badge; accent icon
+        const usdRow = page.locator("tbody tr", { hasText: titles.usd });
+        await expect(await colorOf(usdRow.locator(".chart-line"), "stroke")).toEqual(c.up);
+        await expect(await colorOf(usdRow.locator("span", { hasText: /[٪%]/ }).first(), "color")).toEqual(c.up);
+        await expect(await colorOf(usdRow.locator("svg.lucide").first(), "color")).toEqual(c.accent);
 
-      // Gold 18 — negative change: red line must equal the red badge; gold icon
-      const goldRow = page.locator("tbody tr", { hasText: "طلای ۱۸ عیار" });
-      await expect(await colorOf(goldRow.locator(".chart-line"), "stroke")).toEqual(c.down);
-      await expect(await colorOf(goldRow.locator("span", { hasText: "٪" }).first(), "color")).toEqual(c.down);
-      await expect(await colorOf(goldRow.locator("svg.lucide").first(), "color")).toEqual(c.gold);
+        // Gold 18 — negative change: red line must equal the red badge; gold icon
+        const goldRow = page.locator("tbody tr", { hasText: titles.gold });
+        await expect(await colorOf(goldRow.locator(".chart-line"), "stroke")).toEqual(c.down);
+        await expect(await colorOf(goldRow.locator("span", { hasText: /[٪%]/ }).first(), "color")).toEqual(c.down);
+        await expect(await colorOf(goldRow.locator("svg.lucide").first(), "color")).toEqual(c.gold);
 
-      // Open the large modal and verify the line color there too
-      await goldRow.locator(".chart-cell-btn").click();
-      const modal = page.locator(".modal-panel");
-      await expect(modal).toBeVisible();
-      await expect(modal.locator(".chart-line")).toBeVisible();
-      await expect(await colorOf(modal.locator(".chart-line"), "stroke")).toEqual(c.down);
+        // Overview cards: labels harmonize with the icon colors
+        const usdCard = page.locator(".overview-card", { hasText: titles.usd });
+        await expect(await colorOf(usdCard.locator(".overview-label"), "color")).toEqual(c.accent);
+        const goldCard = page.locator(".overview-card", { hasText: titles.gold });
+        await expect(await colorOf(goldCard.locator(".overview-label"), "color")).toEqual(c.gold);
 
-      await page.screenshot({ path: `test-results/modal-${theme}.png` });
-      await context.close();
-    });
+        // Full-page screenshot: header, meta bar, overview cards, table, footer
+        await page.screenshot({ path: `test-results/full-${theme}-${locale}.png`, fullPage: true });
+
+        // Open the large modal and verify the line color there too
+        await goldRow.locator(".chart-cell-btn").click();
+        const modal = page.locator(".modal-panel");
+        await expect(modal).toBeVisible();
+        await expect(modal.locator(".chart-line")).toBeVisible();
+        await expect(await colorOf(modal.locator(".chart-line"), "stroke")).toEqual(c.down);
+
+        // Pixel-perfect snapshot vs. the committed baseline (e2e/modal-visual.spec.ts-snapshots/).
+        // Regenerate with: npx playwright test --update-snapshots
+        await expect(modal).toHaveScreenshot(`modal-${theme}-${locale}.png`, { animations: "disabled" });
+
+        await modal.screenshot({ path: `test-results/modal-${theme}-${locale}.png` });
+        await context.close();
+      });
+    }
   }
 });

@@ -141,6 +141,35 @@ describe("GET /api/prices — integration", () => {
     expect(body.nextRefresh).toBe(T0 + EIGHT_HOURS_MS);
   });
 
+  it("reports network errors and serves fallback data over HTTP, throttled inside the window", async () => {
+    // the upstream fetch itself throws — the catch path sets error="network"
+    mocks.fetchNavasanPrices.mockRejectedValue(new Error("fetch failed (ECONNREFUSED)"));
+
+    const res = await request(server).get("/api/prices");
+
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      data: { price: string }[];
+      dataTime: string | null;
+      error: string | null;
+      nextRefresh: number;
+    };
+    expect(body.error).toBe("network");
+    expect(body.dataTime).toBeNull();
+    expect(body.data.length).toBeGreaterThan(0);
+    expect(body.data.every((i) => i.price === "0")).toBe(true);
+    expect(body.nextRefresh).toBe(T0 + EIGHT_HOURS_MS);
+    expect(mocks.fetchNavasanPrices).toHaveBeenCalledTimes(1);
+
+    // a second request inside the 8h window does NOT retry the broken
+    // upstream — it keeps serving fallback with the same error
+    const second = await request(server).get("/api/prices");
+    expect(second.status).toBe(200);
+    expect(second.body.error).toBe("network");
+    expect(second.body.data.every((i: { price: string }) => i.price === "0")).toBe(true);
+    expect(mocks.fetchNavasanPrices).toHaveBeenCalledTimes(1);
+  });
+
   it("serves cached data inside the 8h window with a single upstream call", async () => {
     mocks.fetchNavasanPrices.mockResolvedValue({ ok: true, items: navasanItems() });
 
@@ -154,5 +183,37 @@ describe("GET /api/prices — integration", () => {
     expect(second.body.dataTime).toBe("1405-05-25 20:00:45");
     // still no second upstream call — served from the 8h cache
     expect(mocks.fetchNavasanPrices).toHaveBeenCalledTimes(1);
+  });
+
+  it("refetches after the 8h window expires and serves the updated mock prices", async () => {
+    mocks.fetchNavasanPrices.mockResolvedValue({ ok: true, items: navasanItems() });
+
+    // first fetch inside the window — cached with the initial prices
+    const first = await request(server).get("/api/prices");
+    expect(first.status).toBe(200);
+    expect(first.body.data.find((i: { id: string }) => i.id === "usd")!.price).toBe("۱۸۶,۷۰۰");
+    expect(first.body.dataTime).toBe("1405-05-25 20:00:45");
+    expect(first.body.nextRefresh).toBe(T0 + EIGHT_HOURS_MS);
+    expect(mocks.fetchNavasanPrices).toHaveBeenCalledTimes(1);
+
+    // advance time past the 8h window and change the upstream prices
+    nowMs = T0 + EIGHT_HOURS_MS + 60_000;
+    mocks.fetchNavasanPrices.mockResolvedValue({
+      ok: true,
+      items: navasanItems({
+        usd_sell: { value: "190000", change: 3300 },
+        usdt: { value: "186100", change: 300, timestamp: 11, date: "1405-05-26 08:00:00" },
+      }),
+    });
+
+    const second = await request(server).get("/api/prices");
+    expect(second.status).toBe(200);
+    // the API refetched upstream and now serves the new prices + new dataTime
+    expect(second.body.data.find((i: { id: string }) => i.id === "usd")!.price).toBe("۱۹۰,۰۰۰");
+    expect(second.body.data.find((i: { id: string }) => i.id === "tether")!.price).toBe("۱۸۶,۱۰۰");
+    expect(second.body.dataTime).toBe("1405-05-26 08:00:00");
+    expect(mocks.fetchNavasanPrices).toHaveBeenCalledTimes(2);
+    // the new 8h window is anchored to the refetch time
+    expect(second.body.nextRefresh).toBe(nowMs + EIGHT_HOURS_MS);
   });
 });

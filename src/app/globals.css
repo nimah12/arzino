@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Theme color tokens (--accent/--gold + high-contrast variants) live here. */
+@import "./theme.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -21,7 +23,6 @@
   --text-primary: #16202e;
   --text-secondary: #566172;
   --text-tertiary: #8b94a3;
-  --accent: #2f6fe4;
   --accent-bg: rgba(47, 111, 228, 0.1);
   --accent-border: rgba(47, 111, 228, 0.32);
   --on-accent: #ffffff;
@@ -29,7 +30,7 @@
   --up-bg: rgba(13, 155, 114, 0.1);
   --down: #d93036;
   --down-bg: rgba(217, 48, 54, 0.1);
-  --gold: #b8860b;
+  --icon-stroke: 1.75;
   --shimmer-1: #eceff3;
   --shimmer-2: #e1e5eb;
 }
@@ -44,7 +45,6 @@
   --text-primary: #e4e7ec;
   --text-secondary: #848d9c;
   --text-tertiary: #565f70;
-  --accent: #4c8dff;
   --accent-bg: rgba(76, 141, 255, 0.12);
   --accent-border: rgba(76, 141, 255, 0.35);
   --on-accent: #0a0d12;
@@ -52,7 +52,7 @@
   --up-bg: rgba(31, 166, 125, 0.12);
   --down: #e5484d;
   --down-bg: rgba(229, 72, 77, 0.12);
-  --gold: #c9a227;
+  --icon-stroke: 1.75;
   --shimmer-1: #151a23;
   --shimmer-2: #1c222d;
 }
@@ -176,6 +176,50 @@ body {
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
+}
+
+/* Custom tooltip (replaces native title) — portal-rendered, themed bubble */
+.tt {
+  display: inline-flex;
+  align-items: center;
+}
+/* Block variant — used where the wrapped control must fill its cell
+   (e.g. the table sparkline button with width:100%). */
+.tt-block {
+  display: block;
+  width: 100%;
+}
+.tt-bubble {
+  position: fixed;
+  z-index: 100;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.45;
+  font-family: inherit;
+  padding: 5px 9px;
+  border-radius: 6px;
+  max-width: min(280px, 85vw);
+  text-align: center;
+  white-space: normal;
+  pointer-events: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.12);
+  animation: tt-in 0.14s ease-out;
+}
+@keyframes tt-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt-bubble {
+    animation: none;
+  }
 }
 
 /* Custom scrollbar */
@@ -397,6 +441,13 @@ body {
 .data-table thead tr {
   border-bottom: 2px solid transparent;
   border-image: linear-gradient(90deg, var(--accent), var(--gold)) 1;
+}
+/* Uniform palette mode: the accent→gold header gradient reverts to neutral.
+   (border-image: none gets stripped by the CSS minifier as it's the initial
+   value, so the gradient is re-set to the neutral border color instead.) */
+.data-table.uniform thead tr {
+  border-image: linear-gradient(90deg, var(--border), var(--border)) 1;
+  border-bottom: 2px solid var(--border);
 }
 .data-table tbody tr {
   border-bottom: 1px solid var(--border);

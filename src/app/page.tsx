@@ -9,10 +9,11 @@ import {
   type LiveSample,
   type PriceItem,
 } from "@/lib/prices";
-import { Moon, RefreshCw, Search, Sun, TrendingUp, TriangleAlert, X } from "lucide-react";
+import { Moon, Palette, RefreshCw, Search, Sun, SwatchBook, TrendingUp, TriangleAlert, X } from "lucide-react";
 import AssetIcon, { assetColor } from "./components/AssetIcon";
 import PriceCard from "./components/PriceCard";
 import PriceChart from "./components/PriceChart";
+import Tooltip from "./components/Tooltip";
 import { useTheme } from "@/lib/theme";
 import {
   formatJalaliDateTime,
@@ -63,6 +64,8 @@ const translations: Record<Locale, Record<string, string>> = {
     unitNote: "واحد قیمت: تومان",
     realSamples: "نمونه‌های واقعی",
     syntheticNote: "منحنی نمایشی — دادهٔ واقعی هنوز در دسترس نیست",
+    uniformToMono: "حالت یکدست",
+    uniformToColor: "حالت رنگی",
   },
   en: {
     appName: "Arzino",
@@ -102,6 +105,8 @@ const translations: Record<Locale, Record<string, string>> = {
     unitNote: "Prices in Toman",
     realSamples: "real samples",
     syntheticNote: "Display curve — real data not available yet",
+    uniformToMono: "Uniform mode",
+    uniformToColor: "Colored mode",
   },
 };
 
@@ -123,7 +128,7 @@ function formatCountdown(ms: number, locale: Locale): string {
 }
 
 
-function OverviewCard({ item, locale }: { item: PriceItem; locale: Locale }) {
+function OverviewCard({ item, locale, uniform }: { item: PriceItem; locale: Locale; uniform: boolean }) {
   const en = locale === "en";
   const title = en ? ASSET_TITLES[item.id]?.en ?? item.title : item.title;
   const price = en ? toEnDigits(item.price) : item.price;
@@ -133,8 +138,8 @@ function OverviewCard({ item, locale }: { item: PriceItem; locale: Locale }) {
 
   return (
     <div className="overview-card">
-      <span className="overview-label flex items-center gap-1.5" style={{ color: assetColor(item.id) }}>
-        <AssetIcon name={item.id} size={15} title={title} />
+      <span className="overview-label flex items-center gap-1.5" style={{ color: assetColor(item.id, { uniform }) }}>
+        <AssetIcon name={item.id} size={15} title={title} uniform={uniform} />
         <span className="truncate">{title}</span>
       </span>
       <span className="overview-price font-mono-data tabular-nums" style={{ color: "var(--text-primary)" }}>
@@ -201,14 +206,15 @@ function ChartModal({
           <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
             {t("liveChart")}
           </h3>
-          <button
-            onClick={onClose}
-            className="icon-btn"
-            aria-label={t("close")}
-            title={t("close")}
-          >
-            <X size={14} />
-          </button>
+          <Tooltip label={t("close")}>
+            <button
+              onClick={onClose}
+              className="icon-btn"
+              aria-label={t("close")}
+            >
+              <X size={14} />
+            </button>
+          </Tooltip>
         </div>
         <PriceChart id={id} locale={locale} height={260} basePrice={basePrice} change={change} history={history} />
         <div className="mt-3 text-xs space-y-1.5" style={{ color: "var(--text-tertiary)" }}>
@@ -243,6 +249,9 @@ export default function Home() {
     const stored = localStorage.getItem("arzino-locale");
     return stored === "en" || stored === "fa" ? stored : "fa";
   });
+  // Palette mode: colored (gold/accent per asset) or uniform (neutral icons,
+  // card labels and table headers) — fully reversible via the header toggle.
+  const [uniform, setUniform] = useState(false);
   const [query, setQuery] = useState("");
   // Hydration gate — the React-recommended replacement for the old
   // setState-in-effect "mounted" flag: false on the server and during
@@ -419,14 +428,25 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              className="icon-btn"
-              onClick={toggleTheme}
-              aria-label={theme === "dark" ? t("themeToLight") : t("themeToDark")}
-              title={theme === "dark" ? t("themeToLight") : t("themeToDark")}
-            >
-              {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-            </button>
+            <Tooltip label={uniform ? t("uniformToColor") : t("uniformToMono")}>
+              <button
+                className="icon-btn uniform-btn"
+                onClick={() => setUniform((u) => !u)}
+                aria-label={uniform ? t("uniformToColor") : t("uniformToMono")}
+                aria-pressed={uniform}
+              >
+                {uniform ? <SwatchBook size={15} /> : <Palette size={15} />}
+              </button>
+            </Tooltip>
+            <Tooltip label={theme === "dark" ? t("themeToLight") : t("themeToDark")}>
+              <button
+                className="icon-btn theme-btn"
+                onClick={toggleTheme}
+                aria-label={theme === "dark" ? t("themeToLight") : t("themeToDark")}
+              >
+                {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+              </button>
+            </Tooltip>
             <div className="seg-control" role="group" aria-label={locale === "fa" ? "انتخاب زبان" : "Language"}>
               <button
                 onClick={() => setLocale("fa")}
@@ -473,15 +493,16 @@ export default function Home() {
                 {t("nextUpdate")} {countdownLabel}
               </span>
             ) : null}
-            <button
-              onClick={handleRefresh}
-              disabled={loading}
-              className="btn-ghost text-xs flex items-center gap-1.5"
-              title={t("refreshUseless")}
-            >
-              <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
-              {loading ? t("refreshing") : t("refresh")}
-            </button>
+            <Tooltip label={t("refreshUseless")}>
+              <button
+                onClick={handleRefresh}
+                disabled={loading}
+                className="btn-ghost text-xs flex items-center gap-1.5"
+              >
+                <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+                {loading ? t("refreshing") : t("refresh")}
+              </button>
+            </Tooltip>
           </div>
         </div>
 
@@ -517,7 +538,7 @@ export default function Home() {
           <section className="overview-grid mb-5 animate-fade-in" aria-label={t("market")}>
             {OVERVIEW_IDS.map((id) => {
               const item = prices.find((p) => p.id === id);
-              return item ? <OverviewCard key={id} item={item} locale={locale} /> : null;
+              return item ? <OverviewCard key={id} item={item} locale={locale} uniform={uniform} /> : null;
             })}
           </section>
         )}
@@ -536,17 +557,21 @@ export default function Home() {
               {t("unitNote")}
             </span>
           </h2>
-          <div className="search-wrap">
-            <Search size={13} />
-            <input
-              className="search-input"
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("search")}
-              aria-label={t("search")}
-            />
-          </div>
+          {/* The search icon is decorative (absolute + pointer-events:none), so the
+              whole search box is wrapped in the Tooltip — it shows on hover/focus. */}
+          <Tooltip label={t("search")}>
+            <div className="search-wrap">
+              <Search size={13} />
+              <input
+                className="search-input"
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("search")}
+                aria-label={t("search")}
+              />
+            </div>
+          </Tooltip>
         </div>
 
         {/* Watchlist table */}
@@ -558,10 +583,10 @@ export default function Home() {
               ))}
             </div>
           ) : (
-            <table className="data-table">
+            <table className={`data-table${uniform ? " uniform" : ""}`}>
               <thead>
                 <tr>
-                  <th>{t("colName")}</th>
+                  <th style={{ color: uniform ? undefined : "var(--accent)" }}>{t("colName")}</th>
                   <th>
                     {t("colPrice")}{" "}
                     <span className="font-mono-data" style={{ color: "var(--text-tertiary)" }}>({t("unitToman")})</span>
@@ -569,7 +594,9 @@ export default function Home() {
                   <th className="hidden sm:table-cell">{t("colBuy")}</th>
                   <th className="hidden sm:table-cell">{t("colSell")}</th>
                   <th>{t("colChange")}</th>
-                  <th className="hidden md:table-cell">{t("colChart")}</th>
+                  <th className="hidden md:table-cell" style={{ color: uniform ? undefined : "var(--gold)" }}>
+                    {t("colChart")}
+                  </th>
                   <th className="hidden lg:table-cell">{t("colUpdated")}</th>
                 </tr>
               </thead>
@@ -581,6 +608,7 @@ export default function Home() {
                       key={item.id}
                       item={item}
                       locale={locale}
+                      uniform={uniform}
                       flashDir={flash?.dir}
                       flashTick={flash?.tick}
                       animKey={animKey}

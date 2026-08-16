@@ -1,0 +1,35 @@
+/*
+  Theme color tokens — --accent and --gold, organized by mode.
+
+  Modes:
+    :root            — light (default)
+    .dark            — dark (the app toggles this class on <html>)
+    prefers-contrast — high-contrast variants of BOTH themes, applied
+                       automatically when the OS requests more contrast
+                       (no JS needed; testable via Playwright's
+                       page.emulateMedia({ contrast: "more" })).
+
+  The high-contrast values are chosen so accent/gold stay distinguishable
+  against the same backgrounds with a stronger contrast ratio (darker blue /
+  darker gold on light, lighter blue / lighter gold on dark).
+*/
+:root {
+  --accent: #2f6fe4;
+  --gold: #b8860b;
+}
+
+.dark {
+  --accent: #4c8dff;
+  --gold: #c9a227;
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --accent: #1d4ed8;
+    --gold: #6b4c00;
+  }
+  .dark {
+    --accent: #8ab4ff;
+    --gold: #ffd75e;
+  }
+}

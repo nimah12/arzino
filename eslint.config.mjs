@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Agent worktrees (other agents' checkouts + their build artifacts) are
     // not part of this project's lint surface.
     ".claude/**",
+    // Generated coverage reports (html/js output) are not source code.
+    "coverage/**",
   ]),
 ]);
 
