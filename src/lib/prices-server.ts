@@ -9,12 +9,13 @@
  */
 import { promises as fs } from "fs";
 import path from "path";
-import { getLiveHistory, recordLivePrices } from "./live";
+import { getLiveBuffer, getLiveHistory, recordLivePrices, restoreLiveBuffer } from "./live";
 import type { NavasanError } from "./navasan";
 import {
   formatPrice,
   ITEM_META,
   ITEM_ORDER,
+  type PriceHistoryItem,
   type PriceItem,
 } from "./prices";
 
@@ -40,7 +41,10 @@ const fallbackPrices: PriceItem[] = [
 function withLiveHistory(items: PriceItem[]): PriceItem[] {
   return items.map((item) => ({
     ...item,
-    history: getLiveHistory(item.id).map((p) => p.price),
+    history: getLiveHistory(item.id).map((s) => ({
+      t: new Date(s.timestamp).getTime(),
+      p: s.price,
+    })),
   }));
 }
 
@@ -52,6 +56,8 @@ function withLiveHistory(items: PriceItem[]): PriceItem[] {
 const REFRESH_MS = 8 * 60 * 60 * 1000;
 let pricesCache: { data: PriceItem[]; at: number } | null = null;
 let lastAttemptAt = 0;
+// Throttle for persisting the growing live buffer on the cached-data path.
+let lastLivePersistAt = 0;
 
 // Exact last-update timestamp from the Navasan response (`date` field,
 // e.g. "1405-05-25 19:00:18"), kept in sync with the snapshot.
@@ -80,6 +86,8 @@ type PersistedState = {
   lastAttemptAt: number;
   dataTime: string | null;
   dataError: NavasanError | null;
+  /** Live per-minute samples per asset (survive restarts via this file). */
+  live: Record<string, PriceHistoryItem[]>;
 };
 
 let stateLoaded = false;
@@ -99,7 +107,9 @@ async function loadState(): Promise<void> {
           if (typeof saved.lastAttemptAt === "number") lastAttemptAt = saved.lastAttemptAt;
           if (typeof saved.dataTime === "string" || saved.dataTime === null) dataTimeCache = saved.dataTime;
           if (typeof saved.dataError === "string" || saved.dataError === null) dataErrorCache = saved.dataError as NavasanError | null;
-          console.log(`[prices] restored cache from disk (items=${saved.prices?.length ?? 0})`);
+          restoreLiveBuffer(saved.live);
+          const livePoints = Object.values(saved.live ?? {}).reduce((n, s) => n + s.length, 0);
+          console.log(`[prices] restored cache from disk (items=${saved.prices?.length ?? 0}, livePoints=${livePoints})`);
         }
       } catch {
         // No cache file yet (first run) or corrupt — start fresh.
@@ -122,6 +132,7 @@ async function persistState(): Promise<void> {
       lastAttemptAt,
       dataTime: dataTimeCache,
       dataError: dataErrorCache,
+      live: getLiveBuffer(),
     };
     await fs.writeFile(CACHE_FILE, JSON.stringify(state), "utf8");
   } catch (e) {
@@ -136,6 +147,12 @@ export async function fetchPrices(): Promise<PriceItem[]> {
     // Record a per-minute heartbeat so the live history keeps growing even
     // while the 8h upstream window is still valid (prices here are flat).
     recordLivePrices(pricesCache.data);
+    // Persist the growing buffer (throttled to ~once a minute) so a server
+    // restart doesn't wipe the chart history.
+    if (now - lastLivePersistAt >= 60_000) {
+      lastLivePersistAt = now;
+      await persistState();
+    }
     return withLiveHistory(pricesCache.data);
   }
   if (now - lastAttemptAt < REFRESH_MS) return fallbackPrices;

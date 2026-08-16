@@ -76,7 +76,6 @@ export function formatJalaliDateTime(date: Date): string {
   const hh = String(date.getHours()).padStart(2, "0");
   const mm = String(date.getMinutes()).padStart(2, "0");
   const ss = String(date.getSeconds()).padStart(2, "0");
-  const monthName = PERSIAN_MONTH_NAMES[jm - 1];
   return `${toFaDigits(jy)}/${toFaDigits(String(jm).padStart(2, "0"))}/${toFaDigits(String(jd).padStart(2, "0"))} - ${toFaDigits(hh)}:${toFaDigits(mm)}:${toFaDigits(ss)}`;
 }
 
@@ -114,4 +113,34 @@ export function formatGregorianDateLong(date: Date): string {
   const weekday = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][date.getDay()];
   const month = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][date.getMonth()];
   return `${weekday} ${month} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
+/**
+ * Human-readable span of real history, e.g. «۶۰ دقیقهٔ گذشته» / “last 60 min”.
+ */
+export function formatTimeSpan(ms: number, locale: "fa" | "en"): string {
+  const totalMin = Math.max(0, Math.floor(ms / 60_000));
+  if (totalMin < 1) return locale === "fa" ? "کمتر از یک دقیقه" : "under a minute";
+  if (totalMin < 60) {
+    return locale === "fa"
+      ? `${toFaDigits(String(totalMin))} دقیقهٔ گذشته`
+      : `last ${totalMin} min`;
+  }
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h < 24) {
+    return locale === "fa"
+      ? m === 0
+        ? `${toFaDigits(String(h))} ساعت گذشته`
+        : `${toFaDigits(String(h))} ساعت و ${toFaDigits(String(m))} دقیقه گذشته`
+      : m === 0
+        ? `last ${h} hr`
+        : `last ${h}h ${m}m`;
+  }
+  const d = Math.floor(h / 24);
+  return locale === "fa"
+    ? `${toFaDigits(String(d))} روز گذشته`
+    : d === 1
+      ? "last 1 day"
+      : `last ${d} days`;
 }

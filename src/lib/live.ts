@@ -1,6 +1,8 @@
 import type { PriceHistoryItem } from "./prices";
 
-// One point per minute per asset, keep 24h of live samples in memory.
+// One point per minute per asset, keep 24h of live samples.
+// The buffer is persisted to disk (via prices-server.ts) so a restart
+// doesn't wipe the chart history.
 const MAX_POINTS = 60 * 24;
 
 const buffer = new Map<string, PriceHistoryItem[]>();
@@ -30,6 +32,31 @@ export function getLiveHistory(id: string, since?: number): PriceHistoryItem[] {
   const series = buffer.get(id) ?? [];
   if (!since) return series;
   return series.filter((p) => new Date(p.timestamp).getTime() >= since);
+}
+
+/** Serialize the whole buffer (oldest → newest per asset) for disk persistence. */
+export function getLiveBuffer(): Record<string, PriceHistoryItem[]> {
+  return Object.fromEntries(buffer);
+}
+
+/** Restore the buffer from persisted state (e.g. after a server restart). */
+export function restoreLiveBuffer(
+  saved: Record<string, PriceHistoryItem[]> | null | undefined
+): void {
+  if (!saved) return;
+  for (const [id, series] of Object.entries(saved)) {
+    if (!Array.isArray(series)) continue;
+    const clean = series
+      .filter(
+        (p) =>
+          p &&
+          typeof p.timestamp === "string" &&
+          Number.isFinite(p.price) &&
+          p.price > 0
+      )
+      .slice(-MAX_POINTS);
+    if (clean.length > 0) buffer.set(id, clean);
+  }
 }
 
 export function liveChange(series: PriceHistoryItem[]): number | null {

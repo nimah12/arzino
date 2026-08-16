@@ -391,8 +391,12 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   padding: 0.6rem 0.9rem;
-  border-bottom: 1px solid var(--border);
   white-space: nowrap;
+}
+/* Header accent line: a thin accent→gold gradient echoing the icon palette. */
+.data-table thead tr {
+  border-bottom: 2px solid transparent;
+  border-image: linear-gradient(90deg, var(--accent), var(--gold)) 1;
 }
 .data-table tbody tr {
   border-bottom: 1px solid var(--border);

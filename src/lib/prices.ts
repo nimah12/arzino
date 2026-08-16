@@ -5,10 +5,17 @@ export type PriceItem = {
   change: number | null;
   changeAbs: number | null;
   updatedAt: string;
-  history?: number[];
+  /** Real per-minute samples from the server's live buffer, oldest → newest. */
+  history?: LiveSample[];
   buyPrice?: string;
   sellPrice?: string;
   source?: string;
+};
+
+/** One real sample: unix time (ms) + price in Toman. */
+export type LiveSample = {
+  t: number;
+  p: number;
 };
 
 export type PriceHistoryItem = {
@@ -71,7 +78,7 @@ export function formatChange(change: number, locale: "fa" | "en"): string {
 }
 
 export function formatPrice(raw: string | number | null | undefined): string {
-  if (raw == null || raw === "" || raw === "0" || raw === undefined) return "—";
+  if (raw == null || raw === "" || raw === "0" || raw === 0 || raw === undefined) return "—";
   const clean = String(raw).replace(/[^\d.-]/g, "");
   if (!clean || clean === "-") return "—";
   const n = parseFloat(clean);

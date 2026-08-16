@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo } from "react";
+import type { LiveSample } from "@/lib/prices";
 
 interface PriceChartProps {
   id: string;
@@ -13,10 +14,11 @@ interface PriceChartProps {
   change?: number | null;
   /**
    * Real per-minute samples from the server's live buffer (oldest → newest,
-   * Toman). When present, the modal draws them and continues smoothly to the
-   * current price; when empty it falls back to the synthetic curve.
+   * Toman). When at least one sample exists, the chart draws it and continues
+   * smoothly to the current price; only an empty buffer falls back to the
+   * synthetic curve.
    */
-  history?: number[];
+  history?: LiveSample[];
   /** Changes every minute → the draw animation replays (live feel). */
   animKey?: number;
 }
@@ -100,9 +102,9 @@ function genSeries(id: string, base: number, change: number | null): number[] {
 /**
  * Real history + a short synthetic continuation: the line follows the actual
  * per-minute samples and eases from the last sample toward the current price
- * so the pulsing end dot always sits at "now".
+ * so the pulsing end dot always sits at "now". Exported for tests.
  */
-function blendSeries(id: string, real: number[], base: number): number[] {
+export function blendSeries(id: string, real: number[], base: number): number[] {
   const rand = mulberry32(hashSeed(id) ^ 0x51f15e);
   const tail = 14;
   const pts = real.slice();
@@ -152,9 +154,9 @@ export default function PriceChart({
   const series = useMemo(() => {
     const base = basePrice ? toNumLocalized(basePrice) : null;
     const b = base ?? 100;
-    if (history && history.length >= 2) {
-      const real = history.filter((n) => Number.isFinite(n) && n > 0);
-      if (real.length >= 2) return blendSeries(id, real, b);
+    if (history && history.length >= 1) {
+      const real = history.filter((s) => Number.isFinite(s.p) && s.p > 0);
+      if (real.length >= 1) return blendSeries(id, real.map((s) => s.p), b);
     }
     return genSeries(id, b, change ?? null);
   }, [id, basePrice, change, history]);

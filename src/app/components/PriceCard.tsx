@@ -37,7 +37,7 @@ export default function PriceCard({ item, locale, flashDir, flashTick, animKey, 
     <tr>
       <td>
         <div className="flex items-center gap-2.5 min-w-0">
-          <AssetIcon name={item.id} size={17} className="shrink-0" />
+          <AssetIcon name={item.id} size={17} className="shrink-0" title={title} />
           <span className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>
             {title}
           </span>
@@ -101,7 +101,7 @@ export default function PriceCard({ item, locale, flashDir, flashTick, animKey, 
           title={locale === "fa" ? "نمایش نمودار بزرگ" : "Open large chart"}
           aria-label={locale === "fa" ? `نمایش نمودار ${title}` : `Show ${title} chart`}
         >
-          <PriceChart id={item.id} locale={locale} basePrice={item.price} change={item.change} animKey={animKey} />
+          <PriceChart id={item.id} locale={locale} basePrice={item.price} change={item.change} history={item.history} animKey={animKey} />
         </button>
       </td>
 

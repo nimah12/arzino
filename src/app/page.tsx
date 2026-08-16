@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useSyncExternalStore } from "react";
 import {
   ASSET_TITLES,
   formatChange,
   toEnDigits,
   toFaDigits,
+  type LiveSample,
   type PriceItem,
 } from "@/lib/prices";
 import { Moon, RefreshCw, Search, Sun, TrendingUp, TriangleAlert, X } from "lucide-react";
-import AssetIcon from "./components/AssetIcon";
+import AssetIcon, { assetColor } from "./components/AssetIcon";
 import PriceCard from "./components/PriceCard";
 import PriceChart from "./components/PriceChart";
 import { useTheme } from "@/lib/theme";
@@ -18,6 +19,7 @@ import {
   formatJalaliDateLong,
   formatGregorianDateTime,
   formatGregorianDateLong,
+  formatTimeSpan,
 } from "@/lib/jalali";
 
 type Locale = "fa" | "en";
@@ -59,6 +61,8 @@ const translations: Record<Locale, Record<string, string>> = {
     updatesEveryMin: "به‌روزرسانی قیمت‌ها هر ۸ ساعت",
     unitToman: "تومان",
     unitNote: "واحد قیمت: تومان",
+    realSamples: "نمونه‌های واقعی",
+    syntheticNote: "منحنی نمایشی — دادهٔ واقعی هنوز در دسترس نیست",
   },
   en: {
     appName: "Arzino",
@@ -96,6 +100,8 @@ const translations: Record<Locale, Record<string, string>> = {
     updatesEveryMin: "Prices update every 8 hours",
     unitToman: "Toman",
     unitNote: "Prices in Toman",
+    realSamples: "real samples",
+    syntheticNote: "Display curve — real data not available yet",
   },
 };
 
@@ -116,6 +122,7 @@ function formatCountdown(ms: number, locale: Locale): string {
   return locale === "fa" ? toFaDigits(text) : text;
 }
 
+
 function OverviewCard({ item, locale }: { item: PriceItem; locale: Locale }) {
   const en = locale === "en";
   const title = en ? ASSET_TITLES[item.id]?.en ?? item.title : item.title;
@@ -126,8 +133,8 @@ function OverviewCard({ item, locale }: { item: PriceItem; locale: Locale }) {
 
   return (
     <div className="overview-card">
-      <span className="overview-label flex items-center gap-1.5">
-        <AssetIcon name={item.id} size={15} />
+      <span className="overview-label flex items-center gap-1.5" style={{ color: assetColor(item.id) }}>
+        <AssetIcon name={item.id} size={15} title={title} />
         <span className="truncate">{title}</span>
       </span>
       <span className="overview-price font-mono-data tabular-nums" style={{ color: "var(--text-primary)" }}>
@@ -154,11 +161,17 @@ function ChartModal({
   id: string;
   basePrice?: string | null;
   change?: number | null;
-  history?: number[];
+  history?: LiveSample[];
   locale: Locale;
   onClose: () => void;
 }) {
   const t = (key: string) => translations[locale][key] || key;
+
+  // Real-sample status shown under the chart so users know it's live data.
+  const realSamples = (history ?? []).filter((s) => Number.isFinite(s.p) && s.p > 0);
+  const realCount = realSamples.length;
+  const rangeMs =
+    history && history.length >= 2 ? history[history.length - 1].t - history[0].t : 0;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -198,10 +211,18 @@ function ChartModal({
           </button>
         </div>
         <PriceChart id={id} locale={locale} height={260} basePrice={basePrice} change={change} history={history} />
-        <p className="mt-3 text-xs flex items-center gap-1.5" style={{ color: "var(--text-tertiary)" }}>
-          <span className="w-1.5 h-1.5 rounded-full live-dot" style={{ background: "var(--up)" }} />
-          {t("updatesEveryMin")}
-        </p>
+        <div className="mt-3 text-xs space-y-1.5" style={{ color: "var(--text-tertiary)" }}>
+          <p className="flex items-center gap-1.5">
+            <span
+              className="w-1.5 h-1.5 rounded-full live-dot"
+              style={{ background: realCount >= 1 ? "var(--up)" : "var(--border-strong)" }}
+            />
+            {realCount >= 1
+              ? `${t("realSamples")}: ${locale === "fa" ? toFaDigits(String(realCount)) : String(realCount)} · ${formatTimeSpan(rangeMs, locale)}`
+              : t("syntheticNote")}
+          </p>
+          <p className="flex items-center gap-1.5">{t("updatesEveryMin")}</p>
+        </div>
       </div>
     </div>
   );
@@ -223,8 +244,16 @@ export default function Home() {
     return stored === "en" || stored === "fa" ? stored : "fa";
   });
   const [query, setQuery] = useState("");
-  const [mounted, setMounted] = useState(false);
-  const [now, setNow] = useState(new Date());
+  // Hydration gate — the React-recommended replacement for the old
+  // setState-in-effect "mounted" flag: false on the server and during
+  // hydration, true afterwards, so the shimmer shows until the client-only
+  // values (clock, locale) are safe to render. No state update in effects.
+  const isHydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+  const [now, setNow] = useState(() => new Date());
   const [flashes, setFlashes] = useState<Record<string, { dir: "up" | "down"; tick: number }>>({});
   const [selectedChart, setSelectedChart] = useState<string | null>(null);
   const prevPricesRef = useRef<Record<string, string>>({});
@@ -332,8 +361,6 @@ export default function Home() {
   }, [loadPrices]);
 
   useEffect(() => {
-    setMounted(true);
-    setNow(new Date());
     const interval = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(interval);
   }, []);
@@ -356,7 +383,7 @@ export default function Home() {
   const modalItem = selectedChart ? prices.find((p) => p.id === selectedChart) : null;
   const animKey = now.getTime();
 
-  if (!mounted) {
+  if (!isHydrated) {
     return (
       <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg)" }}>
         <div className="shimmer rounded w-56 h-6" />
