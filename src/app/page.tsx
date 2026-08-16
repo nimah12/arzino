@@ -635,8 +635,8 @@ export default function Home() {
             </span>
           </p>
           <div className="flex items-center gap-3">
-            <a href="mailto:bbmesiaaw@gmail.com" className="hover:underline" style={{ color: "var(--text-tertiary)" }}>
-              bbmesiaaw@gmail.com
+            <a href="mailto:nima.hasani.dev@gmail.com" className="hover:underline" style={{ color: "var(--text-tertiary)" }}>
+              nima.hasani.dev@gmail.com
             </a>
             <a href="https://github.com/nimah12/arzino" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: "var(--text-tertiary)" }}>
               github.com/nimah12/arzino
